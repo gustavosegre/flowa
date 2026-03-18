@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FLOWA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap"
+    rel="stylesheet">
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #090909;
+      --surface: #101010;
+      --surface-2: #161616;
+      --border: #1e1e1e;
+      --border-2: #2a2a2a;
+      --text: #c9c9c9;
+      --text-muted: #555;
+      --text-dim: #2e2e2e;
+      --accent: #00e599;
+      --accent-dim: rgba(0, 229, 153, 0.08);
+      --accent-mid: rgba(0, 229, 153, 0.2);
+      --red: #ff5c5c;
+      --red-dim: rgba(255, 92, 92, 0.08);
+      --orange: #ffaa44;
+      --blue: #4d9fff;
+      --blue-dim: rgba(77, 159, 255, 0.08);
+      --font: 'JetBrains Mono', 'Fira Code', monospace;
+      --r: 3px;
+      --ease: 120ms ease;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 12.5px;
+      line-height: 1.65;
+      min-height: 100vh;
+    }
+
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 0 28px;
+      height: 44px;
+    }
+
+    .logo {
+      color: var(--accent);
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .logo-icon {
+      width: 22px;
+      height: 22px;
+      object-fit: contain;
+      display: inline-block;
+    }
+
+    nav {
+      display: flex;
+      gap: 2px;
+      margin-left: 4px;
+    }
+
+    nav a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 11.5px;
+      padding: 4px 12px;
+      border-radius: var(--r);
+      transition: color var(--ease), background var(--ease);
+      cursor: pointer;
+    }
+
+    nav a:hover {
+      color: var(--text);
+      background: var(--surface-2);
+    }
+
+    nav a.active {
+      color: var(--accent);
+      background: var(--accent-dim);
+    }
+
+    .header-right {
+      margin-left: auto;
+      color: var(--text-dim);
+      font-size: 11px;
+    }
+
+    .main {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 36px 28px 80px;
+    }
+
+    .section-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 2.5px;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+    }
+
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 28px;
+    }
+
+    .breadcrumb .crumb {
+      cursor: pointer;
+      transition: color var(--ease);
+    }
+
+    .breadcrumb .crumb:hover {
+      color: var(--accent);
+    }
+
+    .breadcrumb .sep {
+      margin: 0 8px;
+      color: var(--text-dim);
+    }
+
+    .breadcrumb .current {
+      color: var(--text);
+    }
+
+    .pipeline-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 10px;
+    }
+
+    .pipeline-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 18px 20px;
+      transition: border-color var(--ease);
+    }
+
+    .pipeline-card:hover {
+      border-color: var(--border-2);
+    }
+
+    .card-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .card-file {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .btn {
+      padding: 5px 14px;
+      border: 1px solid var(--border-2);
+      background: transparent;
+      color: var(--text-muted);
+      font-family: var(--font);
+      font-size: 11.5px;
+      border-radius: var(--r);
+      cursor: pointer;
+      transition: all var(--ease);
+      outline: none;
+    }
+
+    .btn:hover {
+      border-color: var(--text-muted);
+      color: var(--text);
+      background: var(--surface-2);
+    }
+
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .btn.primary {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .btn.primary:hover {
+      background: var(--accent-dim);
+    }
+
+    .btn.sm {
+      padding: 3px 10px;
+      font-size: 11px;
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 10px;
+      padding: 1px 7px;
+      border-radius: 10px;
+      border: 1px solid var(--border-2);
+      color: var(--text-muted);
+      background: var(--surface-2);
+    }
+
+    .badge.scheduled {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-dim);
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th {
+      text-align: left;
+      font-size: 10px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+
+    tr.clickable {
+      cursor: pointer;
+    }
+
+    tr.clickable:hover td {
+      background: var(--surface-2);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 11.5px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .status-SUCCESS {
+      color: var(--accent);
+    }
+
+    .status-SUCCESS .dot {
+      background: var(--accent);
+      box-shadow: 0 0 5px var(--accent);
+    }
+
+    .status-FAILED {
+      color: var(--red);
+    }
+
+    .status-FAILED .dot {
+      background: var(--red);
+    }
+
+    .status-RUNNING {
+      color: var(--blue);
+    }
+
+    .status-RUNNING .dot {
+      background: var(--blue);
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+
+    .status-SKIPPED {
+      color: var(--text-muted);
+    }
+
+    .status-SKIPPED .dot {
+      background: var(--border-2);
+    }
+
+    .status-FAILED-IGNORED {
+      color: var(--orange);
+    }
+
+    .status-FAILED-IGNORED .dot {
+      background: var(--orange);
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      50% {
+        opacity: 0.3;
+        transform: scale(0.7);
+      }
+    }
+
+    .run-meta {
+      display: flex;
+      gap: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      margin-bottom: 28px;
+      overflow: hidden;
+    }
+
+    .run-meta-cell {
+      padding: 14px 20px;
+      border-right: 1px solid var(--border);
+      flex: 0 0 auto;
+    }
+
+    .run-meta-cell:last-child {
+      border-right: none;
+      flex: 1;
+    }
+
+    .meta-label {
+      font-size: 9.5px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      margin-bottom: 5px;
+    }
+
+    .meta-value {
+      font-size: 12px;
+      color: var(--text);
+    }
+
+    .log-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .log-filename {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .log-filename span {
+      color: var(--text);
+    }
+
+    .log-content {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 20px 24px;
+      font-size: 12px;
+      line-height: 1.75;
+      white-space: pre;
+      overflow: auto;
+      max-height: 620px;
+      color: #aaa;
+      tab-size: 4;
+    }
+
+    .log-content::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    .log-content::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .log-content::-webkit-scrollbar-thumb {
+      background: var(--border-2);
+      border-radius: 3px;
+    }
+
+    .empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 72px 0;
+      color: var(--text-muted);
+      gap: 10px;
+    }
+
+    .empty-glyph {
+      font-size: 28px;
+      color: var(--border-2);
+    }
+
+    .empty-title {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .empty-sub {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 64px 0;
+      color: var(--text-muted);
+      font-size: 11px;
+      gap: 8px;
+    }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--border-2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      padding: 10px 18px;
+      background: var(--surface-2);
+      border: 1px solid var(--border-2);
+      border-radius: var(--r);
+      font-size: 12px;
+      z-index: 999;
+      display: none;
+      animation: toast-in 180ms ease;
+      pointer-events: none;
+    }
+
+    .toast.ok {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .toast.err {
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    @keyframes toast-in {
+      from {
+        transform: translateY(6px);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    code {
+      color: var(--accent);
+      font-family: var(--font);
+    }
+
+    .mono {
+      font-family: var(--font);
+    }
+
+    .dim {
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+
+<body>
+
+  <header class="header">
+    <div class="logo" onclick="go('/pipelines')">
+      <img class="logo-icon" src="/ui/flowa_logo.png" alt="flowa">FLOWA
+    </div>
+    <nav>
+      <a data-nav="pipelines" onclick="go('/pipelines')">pipelines</a>
+      <a data-nav="history" onclick="go('/history')">history</a>
+    </nav>
+    <div class="header-right" id="header-right"></div>
+  </header>
+
+  <main class="main" id="main">
+    <div class="loading">
+      <div class="spinner"></div> loading
+    </div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    'use strict';
+
+    let _refreshTimer = null;
+
+    function go(path) {
+      clearRefresh();
+      history.pushState({}, '', location.pathname + '#' + path);
+      render();
+    }
+
+    function currentRoute() {
+      const hash = location.hash.slice(1) || '/pipelines';
+      const parts = hash.split('/').filter(Boolean);
+      return parts;
+    }
+
+    function clearRefresh() {
+      clearTimeout(_refreshTimer);
+      _refreshTimer = null;
+    }
+
+    const api = {
+      async _get(path) {
+        const r = await fetch(path);
+        if (!r.ok) {
+          const txt = await r.text();
+          let detail;
+          try { detail = JSON.parse(txt).detail; } catch { detail = txt; }
+          throw new Error(detail || r.statusText);
+        }
+        return r.json();
+      },
+      async _post(path) {
+        const r = await fetch(path, { method: 'POST' });
+        if (!r.ok) {
+          const txt = await r.text();
+          let detail;
+          try { detail = JSON.parse(txt).detail; } catch { detail = txt; }
+          throw new Error(detail || r.statusText);
+        }
+        return r.json();
+      },
+      pipelines: () => api._get('/pipelines'),
+      runs: (name, limit) => api._get(`/runs?${name ? `pipeline=${encodeURIComponent(name)}&` : ''}limit=${limit || 60}`),
+      run: (id) => api._get(`/runs/${id}`),
+      logs: (id, step) => api._get(`/runs/${id}/steps/${encodeURIComponent(step)}/logs`),
+      trigger: (name) => api._post(`/pipelines/${encodeURIComponent(name)}/run`),
+    };
+
+    function dur(a, b) {
+      if (!a || !b) return '—';
+      const s = Math.round((new Date(b) - new Date(a)) / 1000);
+      if (s < 60) return s + 's';
+      if (s < 3600) return Math.floor(s / 60) + 'm ' + (s % 60) + 's';
+      return Math.floor(s / 3600) + 'h ' + Math.floor((s % 3600) / 60) + 'm';
+    }
+
+    function ago(iso) {
+      if (!iso) return '—';
+      const s = Math.round((Date.now() - new Date(iso)) / 1000);
+      if (s < 60) return s + 's ago';
+      if (s < 3600) return Math.floor(s / 60) + 'm ago';
+      if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+      return Math.floor(s / 86400) + 'd ago';
+    }
+
+    function fmtDate(iso) {
+      if (!iso) return '—';
+      return iso.replace('T', ' ').slice(0, 19);
+    }
+
+    function esc(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function statusHtml(status) {
+      const cls = status.replace(/[\s()]/g, '-').replace(/-+/g, '-');
+      const icons = {
+        'SUCCESS': '✓',
+        'FAILED': '✗',
+        'FAILED (ignored)': '~',
+        'SKIPPED': '—',
+        'RUNNING': '↻',
+      };
+      const icon = icons[status] ?? '?';
+      return `<span class="status status-${cls}"><span class="dot"></span>${icon} ${esc(status)}</span>`;
+    }
+
+    function toast(msg, type = 'ok') {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = `toast ${type}`;
+      el.style.display = 'block';
+      clearTimeout(el._t);
+      el._t = setTimeout(() => { el.style.display = 'none'; }, 3200);
+    }
+
+    function setNav(section) {
+      document.querySelectorAll('[data-nav]').forEach(a => {
+        a.classList.toggle('active', a.dataset.nav === section);
+      });
+    }
+
+    function headerRight(html) {
+      document.getElementById('header-right').innerHTML = html || '';
+    }
+
+    async function viewPipelines() {
+      setNav('pipelines');
+      headerRight('');
+
+      const pipelines = await api.pipelines();
+
+      if (!pipelines.length) {
+        return `<div class="empty">
+      <div class="empty-glyph">◈</div>
+      <div class="empty-title">no pipelines found</div>
+      <div class="empty-sub">add <code>.yaml</code> files to your <code>pipelines/</code> directory</div>
+    </div>`;
+      }
+
+      const cards = pipelines.map(p => `
+    <div class="pipeline-card">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:3px">
+        <div class="card-name">${esc(p.name)}</div>
+        ${p.has_schedule
+          ? '<span class="badge scheduled">⏱ scheduled</span>'
+          : '<span class="badge">manual</span>'}
+      </div>
+      <div class="card-file">${esc(p.file)}</div>
+      <div class="card-actions">
+        <button class="btn primary" data-action="trigger" data-name="${esc(p.name)}">▶ run</button>
+        <button class="btn" data-action="pipeline-history" data-name="${esc(p.name)}">history</button>
+      </div>
+    </div>
+  `).join('');
+
+      return `<div class="section-label">pipelines — ${pipelines.length} found</div>
+  <div class="pipeline-grid">${cards}</div>`;
+    }
+
+    async function viewHistory(pipelineFilter) {
+      setNav('history');
+      headerRight('');
+
+      const runs = await api.runs(pipelineFilter);
+
+      let header;
+      if (pipelineFilter) {
+        header = `<div class="breadcrumb">
+      <span class="crumb" onclick="go('/history')">history</span>
+      <span class="sep">/</span>
+      <span class="current">${esc(pipelineFilter)}</span>
+    </div>`;
+      } else {
+        header = `<div class="section-label">run history</div>`;
+      }
+
+      if (!runs.length) {
+        return header + `<div class="empty">
+      <div class="empty-glyph">◈</div>
+      <div class="empty-title">no runs yet</div>
+      <div class="empty-sub">trigger a pipeline to see history here</div>
+    </div>`;
+      }
+
+      const rows = runs.map(r => `
+    <tr class="clickable" data-action="view-run" data-id="${r.id}">
+      <td class="dim" style="font-size:11px; width:50px">#${r.id}</td>
+      <td style="color:var(--text)">${esc(r.pipeline_name)}</td>
+      <td>${statusHtml(r.status)}</td>
+      <td class="dim">${ago(r.started_at)}</td>
+      <td class="dim">${dur(r.started_at, r.finished_at)}</td>
+      <td class="dim" style="font-size:11px">${fmtDate(r.started_at)}</td>
+    </tr>
+  `).join('');
+
+      return header + `<div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th>id</th><th>pipeline</th><th>status</th>
+        <th>started</th><th>duration</th><th>timestamp</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+    }
+
+    async function viewRun(id) {
+      setNav('history');
+
+      const run = await api.run(id);
+
+      if (run.status === 'RUNNING') {
+        _refreshTimer = setTimeout(() => render(), 3000);
+        headerRight('<span style="color:var(--blue); font-size:11px">↻ auto-refreshing</span>');
+      } else {
+        headerRight('');
+      }
+
+      const breadcrumb = `<div class="breadcrumb">
+    <span class="crumb" onclick="go('/history')">history</span>
+    <span class="sep">/</span>
+    <span class="crumb" onclick="go('/history/${esc(run.pipeline_name)}')">${esc(run.pipeline_name)}</span>
+    <span class="sep">/</span>
+    <span class="current">run #${run.id}</span>
+  </div>`;
+
+      const meta = `<div class="run-meta">
+    <div class="run-meta-cell">
+      <div class="meta-label">status</div>
+      <div class="meta-value">${statusHtml(run.status)}</div>
+    </div>
+    <div class="run-meta-cell">
+      <div class="meta-label">started</div>
+      <div class="meta-value">${fmtDate(run.started_at)}</div>
+    </div>
+    <div class="run-meta-cell">
+      <div class="meta-label">duration</div>
+      <div class="meta-value">${dur(run.started_at, run.finished_at)}</div>
+    </div>
+    <div class="run-meta-cell">
+      <div class="meta-label">run dir</div>
+      <div class="meta-value" style="font-size:11px; color:var(--text-muted)">${esc(run.run_dir || '—')}</div>
+    </div>
+  </div>`;
+
+      const stepRows = run.steps.map(s => `
+    <tr>
+      <td style="color:var(--text)">${esc(s.step_name)}</td>
+      <td>${statusHtml(s.status)}</td>
+      <td class="dim">${dur(s.started_at, s.finished_at)}</td>
+      <td>
+        ${s.log_file
+          ? `<button class="btn sm" data-action="view-logs" data-run="${run.id}" data-step="${esc(s.step_name)}">view logs</button>`
+          : `<span class="dim">—</span>`}
+      </td>
+    </tr>
+  `).join('');
+
+      const noSteps = run.steps.length === 0
+        ? `<div class="empty" style="padding:32px 0">
+        <div class="empty-sub">no steps recorded yet</div>
+      </div>`
+        : '';
+
+      return breadcrumb + meta
+        + `<div class="section-label">steps — ${run.steps.length}</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>step</th><th>status</th><th>duration</th><th></th></tr></thead>
+        <tbody>${stepRows}</tbody>
+      </table>
+    </div>${noSteps}`;
+    }
+
+    async function viewLogs(runId, stepName) {
+      setNav('history');
+      headerRight('');
+
+      const [run, logs] = await Promise.all([api.run(runId), api.logs(runId, stepName)]);
+
+      const breadcrumb = `<div class="breadcrumb">
+    <span class="crumb" onclick="go('/history')">history</span>
+    <span class="sep">/</span>
+    <span class="crumb" onclick="go('/history/${esc(run.pipeline_name)}')">${esc(run.pipeline_name)}</span>
+    <span class="sep">/</span>
+    <span class="crumb" onclick="go('/runs/${runId}')">run #${runId}</span>
+    <span class="sep">/</span>
+    <span class="current">${esc(stepName)}</span>
+  </div>`;
+
+      const content = logs.content || '(empty log)';
+      const lines = content.split('\n').length;
+
+      return breadcrumb + `
+  <div class="log-header">
+    <div class="log-filename">${esc(logs.log_file)} <span class="dim">— ${lines} lines</span></div>
+    <button class="btn sm" id="btn-copy">copy</button>
+  </div>
+  <div class="log-content" id="log-content">${esc(content)}</div>`;
+    }
+
+    async function render() {
+      clearRefresh();
+      const main = document.getElementById('main');
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> loading</div>';
+
+      const parts = currentRoute();
+      const view = parts[0] || 'pipelines';
+
+      try {
+        if (view === 'runs' && parts[1] && parts[2] === 'steps' && parts[3] && parts[4] === 'logs') {
+          main.innerHTML = await viewLogs(parts[1], decodeURIComponent(parts[3]));
+
+        } else if (view === 'runs' && parts[1]) {
+          main.innerHTML = await viewRun(parts[1]);
+
+        } else if (view === 'history' && parts[1]) {
+          main.innerHTML = await viewHistory(decodeURIComponent(parts[1]));
+
+        } else if (view === 'history') {
+          main.innerHTML = await viewHistory();
+
+        } else {
+          main.innerHTML = await viewPipelines();
+        }
+      } catch (err) {
+        main.innerHTML = `<div class="empty">
+      <div class="empty-glyph">✗</div>
+      <div class="empty-title">something went wrong</div>
+      <div class="empty-sub">${esc(err.message)}</div>
+    </div>`;
+      }
+
+      attachHandlers();
+    }
+
+    function attachHandlers() {
+      document.getElementById('main').addEventListener('click', async e => {
+        const el = e.target.closest('[data-action]');
+        if (!el) return;
+        const action = el.dataset.action;
+
+        if (action === 'trigger') {
+          const name = el.dataset.name;
+          el.disabled = true;
+          el.textContent = '...';
+          try {
+            const res = await api.trigger(name);
+            toast(`run #${res.run_id} started`, 'ok');
+            setTimeout(() => go(`/runs/${res.run_id}`), 400);
+          } catch (err) {
+            toast(err.message, 'err');
+            el.disabled = false;
+            el.textContent = '▶ run';
+          }
+        }
+
+        if (action === 'pipeline-history') {
+          go(`/history/${encodeURIComponent(el.dataset.name)}`);
+        }
+
+        if (action === 'view-run') {
+          go(`/runs/${el.dataset.id}`);
+        }
+
+        if (action === 'view-logs') {
+          go(`/runs/${el.dataset.run}/steps/${encodeURIComponent(el.dataset.step)}/logs`);
+        }
+      }, { once: true });
+
+      const copyBtn = document.getElementById('btn-copy');
+      if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+          const txt = document.getElementById('log-content')?.textContent ?? '';
+          navigator.clipboard.writeText(txt).then(() => toast('copied to clipboard'));
+        });
+      }
+    }
+
+    window.addEventListener('popstate', render);
+    render();
+  </script>
+</body>
+
+</html>

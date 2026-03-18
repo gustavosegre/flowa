@@ -1,0 +1,16 @@
+name: test_pipeline
+
+schedule:
+  days: All Days
+  start: "09:00"
+  end: "18:00"
+  interval_minutes: 1
+
+steps:
+
+  - name: lista
+    run: python3 tests/teste_01.py
+
+  - name: process
+    run: python3 tests/teste_02.py
+    depends_on: lista

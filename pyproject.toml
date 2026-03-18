@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "flowa"
+version = "0.1.0"
+authors = [
+  { name = "gustavosegre" },
+]
+description = "Flowa — lightweight pipeline orchestration"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+keywords = ["pipeline", "orchestration", "workflow", "scheduler", "airflow"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "typer",
+    "pyyaml",
+    "apscheduler",
+    "fastapi",
+    "uvicorn[standard]",
+    "httpx",
+]
+
+[project.urls]
+Homepage = "https://github.com/gustavosegre/flowa"
+
+[project.scripts]
+flowa = "flowa.cli.main:app"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
