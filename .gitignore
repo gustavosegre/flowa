@@ -20,11 +20,13 @@ build/
 .pytest_cache/
 .coverage
 htmlcov/
+tests/
 
 # Runtime data (gerado pelo flowa)
 logs/
 flowa.db
 *.db
+flowa_pipelines/
 
 # IDE
 .vscode/
@@ -38,6 +40,3 @@ Thumbs.db
 .env
 .env.*
 !.env.example
-
-# Claude
-.claude/

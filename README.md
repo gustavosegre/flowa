@@ -23,50 +23,47 @@ Define workflows in YAML, run them from the CLI, schedule them with cron, and mo
 pip install flowa-core
 ```
 
+After install, a `flowa_pipelines/` directory with a ready-to-use `etl.yaml` template is created automatically in your project folder.
+
 **Requirements:** Python 3.11+
 
 
-## Quick Start
+---
 
-**1. Create a pipeline**
+## Getting Started
 
-```yaml
-# pipelines/etl.yaml
-name: etl
+> New to flowa? Follow these 4 steps and you'll have a pipeline running in minutes.
 
-steps:
-  - name: extract
-    run: python scripts/extract.py
-    retries: 3
-    timeout_seconds: 120
-
-  - name: transform
-    run: python scripts/transform.py
-    depends_on: extract
-
-  - name: load
-    run: python scripts/load.py
-    depends_on: transform
-
-  - name: notify
-    run: python scripts/notify.py
-    depends_on: transform
-    continue_on_error: true
-```
-
-**2. Run it**
+**Step 1 — Install**
 
 ```bash
-flowa run pipelines/etl.yaml
+pip install flowa-core
 ```
 
-**3. Open the dashboard**
+**Step 2 — Initialize your project**
 
 ```bash
-flowa serve
-# → http://127.0.0.1:8000
+flowa init
 ```
 
+This creates `flowa_pipelines/etl.yaml` — a pre-configured ETL template with extract, transform, and load steps. Edit it to match your scripts.
+
+**Step 3 — Run a pipeline manually**
+
+```bash
+flowa run flowa_pipelines/etl.yaml
+```
+
+**Step 4 — Start the server**
+
+```bash
+flowa server
+# → API + scheduler running at http://127.0.0.1:8000
+```
+
+That's it. Open `http://127.0.0.1:8000` to see the dashboard, monitor runs, and trigger pipelines.
+
+---
 
 ## Pipeline YAML Reference
 
@@ -79,7 +76,6 @@ schedule:                  # optional
   start: "09:00"
   end:   "18:00"
   interval_minutes: 60
-  timezone: UTC
 
 steps:
   - name: step_name        # required, must be unique
@@ -114,18 +110,28 @@ depends_on: [extract, validate]
 ## CLI Reference
 
 ```bash
-flowa run <pipeline.yaml>       # run a pipeline manually
-flowa start                     # start the scheduler
-flowa serve                     # start the API + web UI
-flowa history                   # show recent runs
-flowa history <pipeline_name>   # filter by pipeline
-flowa logs <run_id>             # show steps for a run
+flowa init                          # create flowa_pipelines/ and etl.yaml template
+flowa run <pipeline.yaml>           # run a pipeline manually
+flowa start                         # start only the scheduler (blocking)
+flowa server                        # start API + web UI + scheduler
+flowa history                       # show recent runs
+flowa history <pipeline_name>       # filter by pipeline
+flowa logs <run_id>                 # show steps for a run
 ```
 
-### `flowa serve` options
+### `flowa server` vs `flowa start`
+
+| Command | What it does |
+|---|---|
+| `flowa server` | Starts the API, web UI, **and** the scheduler — the recommended way to run flowa |
+| `flowa start` | Starts only the scheduler, no API or UI |
+| `flowa server --no-scheduler` | Starts only the API and UI, without scheduling |
+
+### `flowa server` options
 
 ```bash
-flowa serve --host 0.0.0.0 --port 8080 --reload
+flowa server --host 0.0.0.0 --port 8080
+flowa server --no-scheduler
 ```
 
 ---
@@ -173,7 +179,7 @@ All settings are controlled via environment variables:
 
 | Variable | Default | Description |
 |---|---|---|
-| `FLOWA_PIPELINES_DIR` | `pipelines` | Directory scanned by the scheduler |
+| `FLOWA_PIPELINES_DIR` | `flowa_pipelines` | Directory scanned by the scheduler |
 | `FLOWA_LOGS_DIR` | `logs` | Where step log files are written |
 | `FLOWA_DB_PATH` | `flowa.db` | SQLite database file path |
 | `FLOWA_LOG_LEVEL` | `INFO` | Log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
@@ -186,7 +192,7 @@ A typical project using flowa:
 
 ```
 my-project/
-├── pipelines/
+├── flowa_pipelines/
 │   ├── etl.yaml
 │   └── reporting.yaml
 ├── scripts/

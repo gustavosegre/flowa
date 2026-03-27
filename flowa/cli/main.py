@@ -1,10 +1,11 @@
+import os
 import typer
 from typing import Optional
 from datetime import datetime
 
 from flowa.core.parser import load_pipeline
 from flowa.executor.runner import Executor
-from flowa.scheduler.scheduler import start_scheduler
+from flowa.scheduler.scheduler import start_scheduler, start_scheduler_background
 from flowa.utils.logger import setup_logging
 from flowa.database.db import init_db
 from flowa.database.repository import get_pipeline_history, get_step_runs
@@ -38,6 +39,58 @@ def _duration(started_at: str, finished_at: str) -> str:
 @app.callback()
 def main():
     setup_logging()
+
+
+ETL_TEMPLATE = """\
+name: etl_pipeline
+
+schedule:
+  days: All Days
+  start: "08:00"
+  end: "18:00"
+  interval_minutes: 60
+
+max_parallel: 2
+
+steps:
+
+  - name: extract
+    run: python scripts/extract.py
+    retries: 2
+    timeout_seconds: 120
+
+  - name: transform
+    run: python scripts/transform.py
+    depends_on: extract
+    retries: 1
+    timeout_seconds: 300
+
+  - name: load
+    run: python scripts/load.py
+    depends_on: transform
+    retries: 2
+    timeout_seconds: 120
+"""
+
+
+@app.command()
+def init():
+    """Initialize a flowa project: create flowa_pipelines/ and an ETL template."""
+    pipelines_dir = os.path.join(os.getcwd(), "flowa_pipelines")
+
+    if not os.path.exists(pipelines_dir):
+        os.makedirs(pipelines_dir)
+        typer.echo(f"Created flowa_pipelines/ at {pipelines_dir}")
+    else:
+        typer.echo(f"flowa_pipelines/ already exists at {pipelines_dir}")
+
+    etl_path = os.path.join(pipelines_dir, "etl.yaml")
+    if not os.path.exists(etl_path):
+        with open(etl_path, "w") as f:
+            f.write(ETL_TEMPLATE)
+        typer.echo(f"Created template flowa_pipelines/etl.yaml")
+    else:
+        typer.echo(f"flowa_pipelines/etl.yaml already exists, skipping")
 
 
 @app.command()
@@ -105,13 +158,15 @@ def logs(run_id: int = typer.Argument(..., help="Pipeline run ID (from 'flowa hi
 
 
 @app.command()
-def serve(
+def server(
     host: str = typer.Option("127.0.0.1", "--host", help="Bind host"),
     port: int = typer.Option(8000, "--port", "-p", help="Bind port"),
-    reload: bool = typer.Option(False, "--reload", help="Auto-reload on file changes"),
+    no_scheduler: bool = typer.Option(False, "--no-scheduler", help="Disable the background scheduler"),
 ):
     import uvicorn
-    uvicorn.run("flowa.api.app:app", host=host, port=port, reload=reload)
+    if not no_scheduler:
+        start_scheduler_background()
+    uvicorn.run("flowa.api.app:app", host=host, port=port)
 
 
 if __name__ == "__main__":
