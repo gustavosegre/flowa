@@ -1,4 +1,5 @@
 import subprocess
+import sys
 import os
 import logging
 from datetime import datetime
@@ -15,12 +16,33 @@ from flowa.database.repository import (
 
 logger = logging.getLogger(__name__)
 
-LOGS_DIR = os.getenv("FLOWA_LOGS_DIR", "logs")
+LOGS_DIR = os.getenv("FLOWA_LOGS_DIR", "flowa-core/logs")
+
+
+def _build_command(run: str) -> str:
+    """Resolve the interpreter for .sh and .bat scripts."""
+    first_token = run.split()[0]
+    ext = os.path.splitext(first_token)[1].lower()
+
+    if ext == ".sh":
+        if sys.platform == "win32":
+            return f"bash {run}"
+        return f"bash {run}"
+
+    if ext == ".bat":
+        if sys.platform == "win32":
+            return f"cmd /c {run}"
+        logger.warning(f"Running .bat file on non-Windows platform: {run}")
+        return f"cmd /c {run}"
+
+    return run
+
 
 class Executor:
 
     def run_step(self, step, run_dir: str):
         log_file = os.path.join(run_dir, f"{step.name}.log")
+        command = _build_command(step.run)
 
         for attempt in range(1, step.retries + 2):
             logger.info(f"[step:{step.name}] attempt {attempt}/{step.retries + 1}")
@@ -28,12 +50,14 @@ class Executor:
             try:
                 with open(log_file, "w") as f:
                     process = subprocess.run(
-                        step.run,
+                        command,
                         shell=True,
                         stdout=f,
                         stderr=f,
                         timeout=step.timeout_seconds,
+                        cwd=step.working_dir or None,
                     )
+                    f.write(f"\n[flowa] exit code: {process.returncode}\n")
 
                 if process.returncode != 0:
                     raise Exception(

@@ -8,7 +8,7 @@ from flowa.executor.runner import Executor
 
 router = APIRouter(prefix="/pipelines", tags=["pipelines"])
 
-PIPELINES_DIR = lambda: os.getenv("FLOWA_PIPELINES_DIR", "flowa_pipelines")
+PIPELINES_DIR = lambda: os.getenv("FLOWA_PIPELINES_DIR", "flowa-core/pipelines")
 
 
 def _list_yaml_files() -> List[str]:

@@ -536,6 +536,81 @@
     .dim {
       color: var(--text-muted);
     }
+
+    /* ── Dashboard ───────────────────────────────────── */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 18px 20px;
+    }
+
+    .stat-value {
+      font-size: 26px;
+      font-weight: 700;
+      line-height: 1.1;
+      margin-bottom: 6px;
+    }
+
+    .stat-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+    }
+
+    .chart-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 24px;
+      align-items: flex-start;
+    }
+
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 18px 20px;
+      flex: 1;
+    }
+
+    .chart-card.fixed {
+      flex: 0 0 auto;
+      min-width: 168px;
+    }
+
+    .chart-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+
+    .donut-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .chart-legend {
+      display: flex;
+      gap: 16px;
+      margin-top: 10px;
+    }
+
+    .chart-legend span {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
   </style>
 </head>
 
@@ -546,6 +621,7 @@
       <img class="logo-icon" src="/ui/flowa_logo.png" alt="flowa">FLOWA
     </div>
     <nav>
+      <a data-nav="dashboard" onclick="go('/dashboard')">dashboard</a>
       <a data-nav="pipelines" onclick="go('/pipelines')">pipelines</a>
       <a data-nav="history" onclick="go('/history')">history</a>
     </nav>
@@ -572,7 +648,7 @@
     }
 
     function currentRoute() {
-      const hash = location.hash.slice(1) || '/pipelines';
+      const hash = location.hash.slice(1) || '/dashboard';
       const parts = hash.split('/').filter(Boolean);
       return parts;
     }
@@ -603,6 +679,7 @@
         }
         return r.json();
       },
+      stats: () => api._get('/stats'),
       pipelines: () => api._get('/pipelines'),
       runs: (name, limit) => api._get(`/runs?${name ? `pipeline=${encodeURIComponent(name)}&` : ''}limit=${limit || 60}`),
       run: (id) => api._get(`/runs/${id}`),
@@ -630,6 +707,14 @@
     function fmtDate(iso) {
       if (!iso) return '—';
       return iso.replace('T', ' ').slice(0, 19);
+    }
+
+    function fmtDur(s) {
+      if (s == null) return '—';
+      s = Math.round(s);
+      if (s < 60) return s + 's';
+      if (s < 3600) return Math.floor(s / 60) + 'm ' + (s % 60) + 's';
+      return Math.floor(s / 3600) + 'h ' + Math.floor((s % 3600) / 60) + 'm';
     }
 
     function esc(s) {
@@ -848,6 +933,144 @@
   <div class="log-content" id="log-content">${esc(content)}</div>`;
     }
 
+    function buildBarChart(daily) {
+      const W = 380, H = 112;
+      const pL = 8, pR = 8, pT = 8, pB = 28;
+      const cH = H - pT - pB, cW = W - pL - pR;
+
+      const days = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const key = d.toISOString().slice(0, 10);
+        const found = daily.find(x => x.day === key) || {};
+        days.push({ label: d.toLocaleDateString('en', { weekday: 'short' }), success: found.success || 0, failed: found.failed || 0 });
+      }
+
+      const maxVal = Math.max(1, ...days.map(d => d.success + d.failed));
+      const bW = cW / days.length;
+      const gap = bW * 0.28;
+      const bw = bW - gap;
+      let out = '';
+
+      days.forEach((d, i) => {
+        const x = (pL + i * bW + gap / 2).toFixed(1);
+        const total = d.success + d.failed;
+        if (total > 0) {
+          const tH = (total / maxVal) * cH;
+          const sH = (d.success / total) * tH;
+          const fH = tH - sH;
+          const baseY = (pT + cH - tH).toFixed(1);
+          if (sH > 0) out += `<rect x="${x}" y="${baseY}" width="${bw.toFixed(1)}" height="${sH.toFixed(1)}" fill="var(--accent)" opacity="0.8" rx="1.5"/>`;
+          if (fH > 0) out += `<rect x="${x}" y="${(pT + cH - fH).toFixed(1)}" width="${bw.toFixed(1)}" height="${fH.toFixed(1)}" fill="var(--red)" opacity="0.75" rx="1.5"/>`;
+        }
+        const lx = (pL + i * bW + bW / 2).toFixed(1);
+        out += `<text x="${lx}" y="${H - 5}" text-anchor="middle" font-size="9" fill="var(--text-muted)" font-family="monospace">${d.label}</text>`;
+      });
+
+      return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block" xmlns="http://www.w3.org/2000/svg">${out}</svg>`;
+    }
+
+    function buildDonut(success, finished) {
+      const r = 36, cx = 54, cy = 56, size = 108, sw = 11;
+      const C = +(2 * Math.PI * r).toFixed(2);
+      if (finished === 0) {
+        return `<svg viewBox="0 0 ${size} ${size + 4}" width="${size}" height="${size + 4}">
+          <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--border-2)" stroke-width="${sw}"/>
+          <text x="${cx}" y="${cy + 5}" text-anchor="middle" font-size="13" fill="var(--text-muted)" font-family="monospace">—</text>
+        </svg>`;
+      }
+      const rate = success / finished;
+      const pct = Math.round(rate * 100);
+      const sLen = (rate * C).toFixed(2);
+      const gLen = ((1 - rate) * C).toFixed(2);
+      const color = pct >= 90 ? 'var(--accent)' : pct >= 60 ? 'var(--orange)' : 'var(--red)';
+      return `<svg viewBox="0 0 ${size} ${size + 4}" width="${size}" height="${size + 4}">
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--border-2)" stroke-width="${sw}"/>
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}"
+          stroke-dasharray="${sLen} ${gLen}" stroke-linecap="round"
+          transform="rotate(-90 ${cx} ${cy})"/>
+        <text x="${cx}" y="${cy - 3}" text-anchor="middle" font-size="15" font-weight="700" fill="var(--text)" font-family="monospace">${pct}%</text>
+        <text x="${cx}" y="${cy + 13}" text-anchor="middle" font-size="8" fill="var(--text-muted)" font-family="monospace">success rate</text>
+      </svg>`;
+    }
+
+    async function viewDashboard() {
+      setNav('dashboard');
+      headerRight('');
+
+      const { totals, daily, pipelines } = await api.stats();
+      const finished = totals.success + totals.failed;
+
+      const runningBadge = totals.running > 0
+        ? `<span style="font-size:10px;color:var(--blue);margin-left:8px">↻ ${totals.running} running</span>`
+        : '';
+
+      const statCards = `<div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-value">${totals.total}${runningBadge}</div>
+          <div class="stat-label">total runs</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color:var(--accent)">${totals.success}</div>
+          <div class="stat-label">success</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color:${totals.failed > 0 ? 'var(--red)' : 'var(--text)'}">${totals.failed}</div>
+          <div class="stat-label">failed</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${fmtDur(totals.avg_duration_seconds)}</div>
+          <div class="stat-label">avg duration</div>
+        </div>
+      </div>`;
+
+      const pipelineRows = pipelines.map(p => {
+        const rate = p.total > 0 ? Math.round((p.success / p.total) * 100) : 0;
+        const rateColor = rate >= 90 ? 'var(--accent)' : rate >= 60 ? 'var(--orange)' : 'var(--red)';
+        return `<tr class="clickable" data-action="pipeline-history" data-name="${esc(p.pipeline_name)}">
+          <td style="color:var(--text)">${esc(p.pipeline_name)}</td>
+          <td class="dim">${p.total}</td>
+          <td style="color:var(--accent)">${p.success}</td>
+          <td style="color:${p.failed > 0 ? 'var(--red)' : 'var(--text-muted)'}">${p.failed}</td>
+          <td style="color:${rateColor}">${rate}%</td>
+          <td class="dim">${fmtDur(p.avg_duration_seconds)}</td>
+          <td>${statusHtml(p.last_status)}</td>
+        </tr>`;
+      }).join('');
+
+      const pipelineSection = pipelines.length
+        ? `<div class="table-wrap"><table>
+            <thead><tr><th>pipeline</th><th>runs</th><th>success</th><th>failed</th><th>rate</th><th>avg dur</th><th>last run</th></tr></thead>
+            <tbody>${pipelineRows}</tbody>
+          </table></div>`
+        : `<div class="empty" style="padding:32px 0"><div class="empty-sub">no pipeline data yet</div></div>`;
+
+      return `<div class="section-label">dashboard</div>
+        ${statCards}
+        <div class="chart-row">
+          <div class="chart-card">
+            <div class="chart-title">last 7 days</div>
+            ${buildBarChart(daily)}
+            <div class="chart-legend">
+              <span><span style="color:var(--accent)">■</span> success</span>
+              <span><span style="color:var(--red)">■</span> failed</span>
+            </div>
+          </div>
+          <div class="chart-card fixed">
+            <div class="chart-title">success rate</div>
+            <div class="donut-wrap">
+              ${buildDonut(totals.success, finished)}
+              <div style="font-size:10px;color:var(--text-muted)">${finished} completed</div>
+            </div>
+          </div>
+        </div>
+        <div class="section-label">by pipeline</div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+          ${pipelineSection}
+        </div>`;
+    }
+
     async function render() {
       clearRefresh();
       const main = document.getElementById('main');
@@ -857,7 +1080,10 @@
       const view = parts[0] || 'pipelines';
 
       try {
-        if (view === 'runs' && parts[1] && parts[2] === 'steps' && parts[3] && parts[4] === 'logs') {
+        if (view === 'dashboard') {
+          main.innerHTML = await viewDashboard();
+
+        } else if (view === 'runs' && parts[1] && parts[2] === 'steps' && parts[3] && parts[4] === 'logs') {
           main.innerHTML = await viewLogs(parts[1], decodeURIComponent(parts[3]));
 
         } else if (view === 'runs' && parts[1]) {
@@ -869,8 +1095,11 @@
         } else if (view === 'history') {
           main.innerHTML = await viewHistory();
 
-        } else {
+        } else if (view === 'pipelines') {
           main.innerHTML = await viewPipelines();
+
+        } else {
+          main.innerHTML = await viewDashboard();
         }
       } catch (err) {
         main.innerHTML = `<div class="empty">

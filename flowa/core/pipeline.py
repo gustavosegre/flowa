@@ -10,6 +10,7 @@ class Step:
     retries: int = 0
     continue_on_error: bool = False
     timeout_seconds: Optional[int] = None
+    working_dir: Optional[str] = None
 
 
 @dataclass

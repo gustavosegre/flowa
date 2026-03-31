@@ -12,7 +12,7 @@ scheduler = BlockingScheduler()
 
 
 def _pipelines_dir() -> str:
-    return os.getenv("FLOWA_PIPELINES_DIR", "flowa_pipelines")
+    return os.getenv("FLOWA_PIPELINES_DIR", "flowa-core/pipelines")
 
 
 def register_pipeline(pipeline, executor):

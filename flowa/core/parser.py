@@ -23,6 +23,7 @@ def load_pipeline(path: str) -> Pipeline:
             retries=step_data.get("retries", 0),
             continue_on_error=step_data.get("continue_on_error", False),
             timeout_seconds=step_data.get("timeout_seconds"),
+            working_dir=step_data.get("working_dir"),
         )
         steps.append(step)
 

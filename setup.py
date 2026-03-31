@@ -36,16 +36,25 @@ steps:
 
 
 def _create_pipelines_dir():
-    pipelines_dir = os.path.join(os.getcwd(), "flowa_pipelines")
-    if not os.path.exists(pipelines_dir):
-        os.makedirs(pipelines_dir)
-        print(f"[flowa] Created flowa_pipelines/ directory at {pipelines_dir}")
+    base_dir = os.path.join(os.getcwd(), "flowa-core")
+    pipelines_dir = os.path.join(base_dir, "pipelines")
+    logs_dir = os.path.join(base_dir, "logs")
+    data_dir = os.path.join(base_dir, "data")
+
+    for path, label in [
+        (pipelines_dir, "flowa-core/pipelines"),
+        (logs_dir, "flowa-core/logs"),
+        (data_dir, "flowa-core/data"),
+    ]:
+        if not os.path.exists(path):
+            os.makedirs(path)
+            print(f"[flowa] Created {label}/ at {path}")
 
     etl_path = os.path.join(pipelines_dir, "etl.yaml")
     if not os.path.exists(etl_path):
         with open(etl_path, "w") as f:
             f.write(ETL_TEMPLATE)
-        print(f"[flowa] Created template flowa_pipelines/etl.yaml")
+        print(f"[flowa] Created template flowa-core/pipelines/etl.yaml")
 
 
 class PostInstall(install):

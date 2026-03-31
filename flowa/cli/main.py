@@ -75,22 +75,30 @@ steps:
 
 @app.command()
 def init():
-    """Initialize a flowa project: create flowa_pipelines/ and an ETL template."""
-    pipelines_dir = os.path.join(os.getcwd(), "flowa_pipelines")
+    """Initialize a flowa project: create flowa-core/ structure and an ETL template."""
+    base_dir = os.path.join(os.getcwd(), "flowa-core")
+    pipelines_dir = os.path.join(base_dir, "pipelines")
+    logs_dir = os.path.join(base_dir, "logs")
+    data_dir = os.path.join(base_dir, "data")
 
-    if not os.path.exists(pipelines_dir):
-        os.makedirs(pipelines_dir)
-        typer.echo(f"Created flowa_pipelines/ at {pipelines_dir}")
-    else:
-        typer.echo(f"flowa_pipelines/ already exists at {pipelines_dir}")
+    for path, label in [
+        (pipelines_dir, "flowa-core/pipelines"),
+        (logs_dir, "flowa-core/logs"),
+        (data_dir, "flowa-core/data"),
+    ]:
+        if not os.path.exists(path):
+            os.makedirs(path)
+            typer.echo(f"Created {label}/")
+        else:
+            typer.echo(f"{label}/ already exists, skipping")
 
     etl_path = os.path.join(pipelines_dir, "etl.yaml")
     if not os.path.exists(etl_path):
         with open(etl_path, "w") as f:
             f.write(ETL_TEMPLATE)
-        typer.echo(f"Created template flowa_pipelines/etl.yaml")
+        typer.echo(f"Created template flowa-core/pipelines/etl.yaml")
     else:
-        typer.echo(f"flowa_pipelines/etl.yaml already exists, skipping")
+        typer.echo(f"flowa-core/pipelines/etl.yaml already exists, skipping")
 
 
 @app.command()

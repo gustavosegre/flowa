@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from flowa.api.routes.pipelines import router as pipelines_router
 from flowa.api.routes.runs import router as runs_router
+from flowa.api.routes.stats import router as stats_router
 from flowa.database.db import init_db
 
 UI_STATIC = Path(__file__).parent.parent / "ui" / "static"
@@ -27,6 +28,7 @@ app = FastAPI(
 
 app.include_router(pipelines_router)
 app.include_router(runs_router)
+app.include_router(stats_router)
 
 
 @app.get("/health", tags=["meta"])
