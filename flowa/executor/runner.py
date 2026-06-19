@@ -270,10 +270,37 @@ class Executor:
             if getattr(pipeline, "teams_chat", None):
                 try:
                     from flowa.utils.teams_notifier import notify
+                    from flowa.utils.ai_analyzer import analyze_error
+                    from flowa.utils.flowa_config import get_ai_config
+
                     duration = (datetime.now() - started_at).total_seconds()
                     success = overall == "SUCCESS"
                     failed_steps = [s for s, r in results.items() if "FAIL" in r]
-                    details = (f"Steps com falha: {', '.join(failed_steps)}") if failed_steps else None
+
+                    details = None
+                    ai_analysis = None
+
+                    if failed_steps:
+                        log_snippets = []
+                        for step_name in failed_steps:
+                            log_file = os.path.join(run_dir, f"{step_name}.log")
+                            if os.path.exists(log_file):
+                                try:
+                                    with open(log_file, "r", encoding="utf-8", errors="replace") as lf:
+                                        content = lf.read()
+                                    log_snippets.append(f"[{step_name}]\n{content[-1500:]}")
+                                except Exception:
+                                    pass
+                        details = "\n\n".join(log_snippets) if log_snippets else f"Steps com falha: {', '.join(failed_steps)}"
+
+                        ai_cfg = get_ai_config()
+                        if ai_cfg.get("analyze_errors", True) and details:
+                            ai_analysis = analyze_error(
+                                details=details,
+                                context=f"Pipeline '{pipeline.name}' — steps com falha: {', '.join(failed_steps)}",
+                                ai_config=ai_cfg,
+                            )
+
                     notify(
                         webhook_url=pipeline.teams_chat,
                         title=f"Pipeline '{pipeline.name}' — {overall}",
@@ -281,6 +308,7 @@ class Executor:
                         success=success,
                         details=details,
                         duration=duration,
+                        ai_analysis=ai_analysis,
                     )
                 except Exception as e:
                     logger.warning(f"[teams] failed to send notification: {e}")

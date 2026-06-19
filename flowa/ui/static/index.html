@@ -546,10 +546,148 @@
 
     .chart-legend { display: flex; gap: 16px; margin-top: 10px; }
     .chart-legend span { font-size: 10px; color: var(--text-muted); }
+
+    /* ── Leaf canvas ─────────────────────────────── */
+    #leaf-canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.38;
+    }
+
+    .header, .main { position: relative; z-index: 1; }
+
+    /* ── Enhanced animations ─────────────────────── */
+
+    /* Cards fade + slide in on render */
+    @keyframes card-in {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .pipeline-card {
+      animation: card-in 260ms ease both;
+      transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+    }
+
+    .pipeline-card:hover {
+      border-color: var(--border-2);
+      box-shadow: 0 0 0 1px var(--border-2), 0 4px 24px rgba(0,229,153,0.04);
+      transform: translateY(-1px);
+    }
+
+    /* Stagger cards */
+    .pipeline-card:nth-child(1) { animation-delay: 30ms; }
+    .pipeline-card:nth-child(2) { animation-delay: 60ms; }
+    .pipeline-card:nth-child(3) { animation-delay: 90ms; }
+    .pipeline-card:nth-child(4) { animation-delay: 120ms; }
+    .pipeline-card:nth-child(5) { animation-delay: 150ms; }
+    .pipeline-card:nth-child(6) { animation-delay: 180ms; }
+
+    /* Stat cards */
+    @keyframes stat-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .stat-card {
+      animation: stat-in 300ms ease both;
+      transition: border-color 160ms ease, box-shadow 160ms ease;
+    }
+
+    .stat-card:nth-child(1) { animation-delay: 0ms; }
+    .stat-card:nth-child(2) { animation-delay: 60ms; }
+    .stat-card:nth-child(3) { animation-delay: 120ms; }
+    .stat-card:nth-child(4) { animation-delay: 180ms; }
+
+    .stat-card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent-mid), inset 0 0 32px rgba(0,229,153,0.03);
+    }
+
+    /* Buttons */
+    .btn {
+      transition: all 150ms ease;
+    }
+
+    .btn:not(:disabled):active {
+      transform: scale(0.96);
+    }
+
+    .btn.primary:hover {
+      background: var(--accent-dim);
+      box-shadow: 0 0 12px rgba(0,229,153,0.15);
+    }
+
+    /* Running dot — stronger pulse */
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1);   box-shadow: 0 0 0 0 rgba(77,159,255,0.6); }
+      50%       { opacity: 0.7; transform: scale(1.3); box-shadow: 0 0 0 4px rgba(77,159,255,0); }
+    }
+
+    /* Success dot glow */
+    .status-SUCCESS .dot {
+      animation: glow-green 2.4s ease-in-out infinite;
+    }
+
+    @keyframes glow-green {
+      0%, 100% { box-shadow: 0 0 4px var(--accent); }
+      50%       { box-shadow: 0 0 10px var(--accent), 0 0 20px rgba(0,229,153,0.3); }
+    }
+
+    /* Logo hover */
+    .logo {
+      transition: opacity 160ms ease;
+    }
+    .logo:hover { opacity: 0.8; }
+
+    /* Workspace header */
+    .workspace-header {
+      transition: border-color 160ms ease, background 160ms ease;
+    }
+    .workspace-header:hover {
+      background: var(--surface-2);
+    }
+
+    /* Nav links */
+    nav a {
+      transition: color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+    }
+    nav a.active {
+      box-shadow: inset 0 -1px 0 var(--accent);
+    }
+
+    /* Toast */
+    @keyframes toast-in {
+      from { transform: translateY(10px); opacity: 0; }
+      to   { transform: translateY(0);   opacity: 1; }
+    }
+
+    @keyframes toast-out {
+      from { transform: translateY(0);   opacity: 1; }
+      to   { transform: translateY(6px); opacity: 0; }
+    }
+
+    /* Table rows */
+    tr.clickable {
+      transition: background 120ms ease;
+    }
+
+    tr.clickable:hover td {
+      background: var(--surface-2);
+    }
+
+    /* Spinner */
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 
 <body>
+
+  <canvas id="leaf-canvas"></canvas>
 
   <header class="header">
     <div class="logo" onclick="go('/pipelines')">
@@ -753,7 +891,7 @@
       <div class="card-file">${esc(p.file)}</div>
       ${depsTree}
       <div class="card-actions">
-        <button class="btn primary" data-action="trigger" data-name="${esc(p.name)}" ${isRunning ? 'disabled' : ''}>▶ run</button>
+        <button class="btn primary" data-action="trigger" data-name="${esc(p.file.replace('.yaml', ''))}" ${isRunning ? 'disabled' : ''}>▶ run</button>
         <button class="btn" data-action="pipeline-history" data-name="${esc(p.name)}">history</button>
         ${stopBtn}
       </div>
@@ -1222,6 +1360,96 @@
 
     window.addEventListener('popstate', render);
     render();
+  </script>
+
+  <script>
+    // ── Leaf background animation ─────────────────────────────────────────
+    (function () {
+      const canvas = document.getElementById('leaf-canvas');
+      const ctx = canvas.getContext('2d');
+
+      const ACCENT   = 'rgba(0, 229, 153,';   // --accent
+      const ACCENT2  = 'rgba(0, 180, 120,';
+      const LEAF_COUNT = 77;
+
+      function resize() {
+        canvas.width  = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+      resize();
+      window.addEventListener('resize', resize);
+
+      // Draw a simple leaf shape at origin, pointing up
+      function leafPath(ctx, w, h) {
+        ctx.beginPath();
+        ctx.moveTo(0, -h / 2);
+        ctx.bezierCurveTo( w / 2, -h / 4,  w / 2,  h / 4, 0,  h / 2);
+        ctx.bezierCurveTo(-w / 2,  h / 4, -w / 2, -h / 4, 0, -h / 2);
+        ctx.closePath();
+      }
+
+      function rand(a, b) { return a + Math.random() * (b - a); }
+
+      function mkLeaf() {
+        const size = rand(7, 22);
+        return {
+          x:      rand(0, window.innerWidth),
+          y:      rand(-100, window.innerHeight + 100),
+          w:      size * rand(0.5, 0.8),
+          h:      size,
+          rot:    rand(0, Math.PI * 2),
+          drot:   rand(-0.004, 0.004),
+          speed:  rand(0.18, 0.55),
+          drift:  rand(-0.12, 0.12),
+          alpha:  rand(0.25, 0.7),
+          color:  Math.random() > 0.5 ? ACCENT : ACCENT2,
+          sway:   rand(0, Math.PI * 2),
+          swayS:  rand(0.003, 0.009),
+          swayA:  rand(10, 30),
+        };
+      }
+
+      const leaves = Array.from({ length: LEAF_COUNT }, mkLeaf);
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        for (const l of leaves) {
+          // update
+          l.sway += l.swayS;
+          l.x    += l.drift + Math.sin(l.sway) * 0.3;
+          l.y    += l.speed;
+          l.rot  += l.drot;
+
+          // wrap
+          if (l.y > canvas.height + 40)  { l.y = -40; l.x = rand(0, canvas.width); }
+          if (l.x > canvas.width + 40)   { l.x = -40; }
+          if (l.x < -40)                 { l.x = canvas.width + 40; }
+
+          // draw
+          ctx.save();
+          ctx.translate(l.x, l.y);
+          ctx.rotate(l.rot);
+          leafPath(ctx, l.w, l.h);
+          ctx.fillStyle = l.color + l.alpha + ')';
+          ctx.fill();
+
+          // subtle vein line
+          ctx.beginPath();
+          ctx.moveTo(0, -l.h / 2);
+          ctx.lineTo(0,  l.h / 2);
+          ctx.strokeStyle = l.color + (l.alpha * 0.4) + ')';
+          ctx.lineWidth = 0.5;
+          ctx.stroke();
+
+          ctx.restore();
+        }
+
+        requestAnimationFrame(draw);
+      }
+
+      draw();
+    })();
   </script>
 </body>
 

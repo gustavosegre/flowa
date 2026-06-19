@@ -13,35 +13,39 @@ Define workflows in YAML, run them from the CLI, schedule them with cron, and mo
 - **Continue on error** — mark steps as non-blocking for their dependents
 - **Cron scheduling** — schedule pipelines by day/time/interval
 - **SQLite history** — every run and step is recorded automatically
-- **REST API** — trigger pipelines and query history programmatically
+- **REST API** — trigger, stop and query pipelines programmatically
 - **Web UI** — built-in dashboard to manage and monitor pipelines
 - **Script support** — run `.py`, `.sh` and `.bat` files natively
 - **Working directory** — set per-step `working_dir` for scripts that rely on relative paths
-- **Dashboard** — visual overview with charts, success rate and per-pipeline breakdown
+- **Workspaces** — group pipelines by team or domain directly in the YAML
+- **Microsoft Teams notifications** — send success/failure alerts to Teams channels via webhook
+- **Stop running pipelines** — cancel an active run from the UI or API
+- **Auto-reload** — pipeline changes are picked up automatically without restarting the server
 
 ---
 
 ## What's New
 
+### v0.1.6
+- **Workspaces** — add `workspace: NAME` to any pipeline YAML to group pipelines in the UI under a collapsible section
+- **Microsoft Teams integration** — add `teams_chat: <WEBHOOK_URL>` to send Adaptive Card notifications on pipeline success/failure
+- **Stop runs** — new `POST /runs/{id}/stop` endpoint and ⏹ stop button in the UI
+- **Dependency tree on cards** — pipelines with `depends_on` show a visual tree on the pipeline card
+- **Run button fix** — trigger now uses the filename (not the internal `name:`) to locate the pipeline, preventing "not found" errors
+- **Encoding fix** — scripts with special characters, emojis or non-ASCII output no longer cause runner errors
+- **Exit code detection** — flowa now reliably detects success/failure from the process exit code regardless of whether the script calls `sys.exit()`
+- **Auto-reload** — editing a `.yaml` file is picked up on the next scheduled tick without restarting the server
+
 ### v0.1.5
-- **Dashboard view** — new home page in the web UI with:
-  - Stat cards: total runs, success, failed, avg duration
-  - Last 7 days bar chart (SVG, no external libs)
-  - Success rate donut chart with dynamic color (green/orange/red)
-  - Per-pipeline breakdown table with last run status
-- **New `GET /stats` endpoint** — powers the dashboard, returns totals, daily activity and per-pipeline metrics
-- **`.sh` and `.bat` support** — use shell/batch scripts directly in the `run` field; flowa auto-prepends the correct interpreter
-- **`working_dir` per step** — fix issues where scripts fail when run from a different working directory
-- **Exit code in log file** — every step log now ends with `[flowa] exit code: X` so failures are always visible
-- **New project structure** — `flowa init` now creates `flowa-core/` with `pipelines/`, `logs/` and `data/` subdirectories
+- **Dashboard view** — new home page in the web UI with stat cards, 7-day bar chart and success rate donut
+- **New `GET /stats` endpoint** — powers the dashboard
+- **`.sh` and `.bat` support** — shell/batch scripts auto-detected by extension
+- **`working_dir` per step** — run scripts from the correct directory
+- **Exit code in log file** — every step log ends with `[flowa] exit code: X`
+- **New project structure** — `flowa init` creates `flowa-core/` with `pipelines/`, `logs/` and `data/`
 
 ### v0.1.4
 - Initial public release
-- CLI: `init`, `run`, `start`, `server`, `history`, `logs`
-- REST API with FastAPI
-- SQLite-backed run history
-- APScheduler-based cron scheduling
-- Web UI: pipelines and history views
 
 ---
 
@@ -49,6 +53,12 @@ Define workflows in YAML, run them from the CLI, schedule them with cron, and mo
 
 ```bash
 pip install flowa-core
+```
+
+Or with [uv](https://github.com/astral-sh/uv):
+
+```bash
+uv tool install flowa-core
 ```
 
 **Requirements:** Python 3.11+
@@ -89,8 +99,6 @@ flowa run flowa-core/pipelines/etl.yaml
 **Step 4 — Start the server**
 
 ```bash
-python -m uvicorn flowa.api.app:app --reload
-# or
 flowa server
 # → API + scheduler + web UI at http://127.0.0.1:8000
 ```
@@ -102,8 +110,11 @@ Open `http://127.0.0.1:8000` to see the dashboard, monitor runs, and trigger pip
 ## Pipeline YAML Reference
 
 ```yaml
-name: my_pipeline          # required
+name: my_pipeline          # required — display name
+workspace: Finance         # optional — groups pipelines in the UI
 max_parallel: 4            # max concurrent steps (default: 4)
+use_uv: false              # run python steps via uv (default: false)
+teams_chat: https://...    # optional — Teams webhook URL for notifications
 
 schedule:                  # optional
   days: All Days           # All Days | Mon,Tue,Wed,Thu,Fri | ["Mon", "Fri"]
@@ -112,14 +123,56 @@ schedule:                  # optional
   interval_minutes: 60
 
 steps:
-  - name: step_name           # required, must be unique
+  - name: step_name           # required, must be unique within the pipeline
     run: command or script    # required — see examples below
     depends_on: other_step    # optional — string or list
     retries: 0                # optional, default 0
     timeout_seconds: 60       # optional, no limit by default
     continue_on_error: false  # optional, default false
     working_dir: /path/to/dir # optional, working directory for this step
+    use_uv: false             # optional, overrides pipeline-level use_uv
 ```
+
+### Workspaces
+
+Add `workspace` to group related pipelines together in the UI. Pipelines with the same workspace are shown under a collapsible dropdown:
+
+```yaml
+# finance/etl.yaml
+name: ETL Finance
+workspace: Finance
+steps:
+  - name: extract
+    run: scripts/extract.py
+```
+
+```yaml
+# finance/report.yaml
+name: Monthly Report
+workspace: Finance
+steps:
+  - name: generate
+    run: scripts/report.py
+```
+
+Pipelines without a `workspace` field appear ungrouped.
+
+### Teams Notifications
+
+Add `teams_chat` with a Teams incoming webhook URL to receive Adaptive Card notifications when the pipeline finishes:
+
+```yaml
+name: ETL Finance
+teams_chat: https://your-org.webhook.office.com/webhookb2/...
+
+steps:
+  - name: extract
+    run: scripts/extract.py
+```
+
+Flowa sends a **success** card (✅) or **failure** card (❌) automatically after each run. The card includes the pipeline name, host, timestamp, duration and last error details (if any).
+
+To use different channels per team, just set a different webhook URL in each pipeline YAML.
 
 ### Running scripts
 
@@ -149,6 +202,8 @@ depends_on: extract
 # or
 depends_on: [extract, validate]
 ```
+
+Pipelines with `depends_on` show a dependency tree on their card in the UI.
 
 ### Step status values
 
@@ -190,6 +245,7 @@ flowa server --no-scheduler
 | `POST` | `/pipelines/{name}/run` | Trigger a pipeline (async) |
 | `GET` | `/runs` | Execution history |
 | `GET` | `/runs/{id}` | Run detail with steps |
+| `POST` | `/runs/{id}/stop` | Stop an active run |
 | `GET` | `/runs/{id}/steps/{step}/logs` | Step log content |
 | `GET` | `/stats` | Dashboard statistics (totals, daily, per-pipeline) |
 | `GET` | `/health` | Health check |
@@ -207,6 +263,12 @@ Interactive docs available at `http://localhost:8000/docs`.
 ```bash
 curl -X POST http://localhost:8000/pipelines/etl/run
 # {"run_id": 42, "status": "RUNNING", ...}
+```
+
+**Stop a running pipeline:**
+
+```bash
+curl -X POST http://localhost:8000/runs/42/stop
 ```
 
 **Check run status:**
@@ -231,8 +293,6 @@ All settings are controlled via environment variables:
 ---
 
 ## Project Layout
-
-A typical project using flowa:
 
 ```
 my-project/

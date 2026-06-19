@@ -41,6 +41,173 @@ def main():
     setup_logging()
 
 
+TEAMS_CONFIG_TEMPLATE = '''\
+# =============================================================================
+# flowa-core/teams_config.py
+# Personalizacao das notificacoes do Microsoft Teams via Flowa.
+# Este arquivo e carregado automaticamente — edite conforme necessario.
+# =============================================================================
+
+import socket
+
+
+# =============================================================================
+# IDENTIFICACAO
+# =============================================================================
+
+# Nome exibido no cabecalho de todos os cards.
+APP_NAME = "FLOWA"
+
+# Identificacao da maquina exibida abaixo do APP_NAME.
+# Por padrao usa o hostname do sistema. Voce pode fixar um nome amigavel:
+# HOSTNAME = "Servidor Producao"
+# HOSTNAME = "ETL-WIN-01"
+HOSTNAME = socket.gethostname()
+
+
+# =============================================================================
+# ICONES
+# =============================================================================
+
+# Emoji exibido no titulo quando o pipeline conclui com sucesso.
+# Exemplos: "✅" "🟢" "🎉" "👍"
+ICON_SUCESSO = "✅"
+
+# Emoji exibido no titulo quando o pipeline falha.
+# Exemplos: "❌" "🔴" "🚨" "⚠️"
+ICON_ERRO = "❌"
+
+# Emoji exibido no titulo da secao de analise da IA.
+# Exemplos: "👾" "🤖" "🧠" "💡"
+ICON_IA = "👾"
+
+
+# =============================================================================
+# IMAGENS DO CARD
+# =============================================================================
+
+# Imagem exibida no canto do card quando o pipeline tem SUCESSO.
+# Use uma URL publica acessivel pelo Teams.
+# Formatos aceitos: PNG, JPG, GIF (GIFs animados funcionam).
+IMG_SUCESSO = (
+    "https://i.pinimg.com/originals/d6/71/b5/"
+    "d671b57b99533df856544bb3f30fe559.gif"
+)
+
+# Imagem exibida no canto do card quando o pipeline FALHA.
+IMG_ERRO = (
+    "https://ih1.redbubble.net/image.2579899118.1732/"
+    "st,small,507x507-pad,600x600,f8f8f8.jpg"
+)
+
+# Tamanho da imagem no card.
+# Opcoes: "Small" | "Medium" | "Large" | "ExtraLarge" | "Auto" | "Stretch"
+IMG_TAMANHO = "Large"
+
+# Estilo da imagem.
+# "Default" -> retangular | "Person" -> circular (bom para avatares/logos)
+IMG_ESTILO = "Person"
+
+
+# =============================================================================
+# CORES DO CARD
+# =============================================================================
+
+# Cor do texto do titulo quando SUCESSO.
+# Opcoes: "good" (verde) | "accent" (azul) | "dark" | "light" | "default"
+COR_SUCESSO = "good"
+
+# Cor do texto do titulo quando FALHA.
+# Opcoes: "attention" (vermelho) | "warning" (laranja) | "dark" | "default"
+COR_ERRO = "attention"
+
+
+# =============================================================================
+# FORMATO DE DATA
+# =============================================================================
+
+# Formato da data/hora exibida no card.
+# Referencia: https://docs.python.org/3/library/datetime.html#strftime-codes
+# Exemplos:
+#   "%d/%m/%Y %H:%M:%S"  ->  18/06/2025 14:30:00
+#   "%Y-%m-%d %H:%M"     ->  2025-06-18 14:30
+#   "%d %b %Y %H:%M"     ->  18 Jun 2025 14:30
+FORMATO_DATA = "%d/%m/%Y %H:%M:%S"
+
+
+# =============================================================================
+# SECAO DE DETALHES TECNICOS (TRACEBACK / LOG)
+# =============================================================================
+
+# Exibir a secao de detalhes tecnicos (log do step com falha) no card?
+EXIBIR_DETALHES = True
+
+# Numero maximo de caracteres do log exibidos no card.
+# O Teams tem limite de tamanho de payload — recomendado entre 500 e 1500.
+MAX_TRACEBACK_CHARS = 700
+
+
+# =============================================================================
+# SECAO DE ANALISE DA IA
+# =============================================================================
+
+# Exibir a secao de analise da IA no card quando disponivel?
+EXIBIR_ANALISE_IA = True
+
+# Numero maximo de caracteres da resposta da IA exibidos no card.
+MAX_IA_CHARS = 1000
+
+
+# =============================================================================
+# REDE / SSL
+# =============================================================================
+
+# Timeout em segundos para o envio da notificacao ao Teams.
+TEAMS_TIMEOUT = 10
+
+# Verificacao de certificado SSL.
+# False -> desativa verificacao (util em redes corporativas com proxy/MITM).
+# True  -> verifica certificado (recomendado em ambientes sem proxy).
+SSL_VERIFY = False
+'''
+
+CONFIG_TEMPLATE = """\
+# Flowa global configuration
+# Place this file at flowa-core/config.yaml
+
+ai:
+  # Provider to use for automatic error analysis in Teams notifications.
+  # Options: groq | claude | gemini | openai | none
+  provider: none
+
+  # Set to false to disable AI analysis even when a provider is configured.
+  analyze_errors: true
+
+  groq:
+    api_key: ""
+    model: "llama-3.3-70b-versatile"
+    max_tokens: 500
+    timeout: 30
+
+  claude:
+    api_key: ""
+    model: "claude-haiku-4-5-20251001"
+    max_tokens: 500
+    timeout: 30
+
+  gemini:
+    api_key: ""
+    model: "gemini-1.5-flash"
+    max_tokens: 500
+    timeout: 30
+
+  openai:
+    api_key: ""
+    model: "gpt-4o-mini"
+    max_tokens: 500
+    timeout: 30
+"""
+
 ETL_TEMPLATE = """\
 name: etl_pipeline
 
@@ -99,6 +266,33 @@ def init():
         typer.echo(f"Created template flowa-core/pipelines/etl.yaml")
     else:
         typer.echo(f"flowa-core/pipelines/etl.yaml already exists, skipping")
+
+    config_path = os.path.join(base_dir, "config.yaml")
+    if not os.path.exists(config_path):
+        with open(config_path, "w") as f:
+            f.write(CONFIG_TEMPLATE)
+        typer.echo(f"Created flowa-core/config.yaml")
+    else:
+        typer.echo(f"flowa-core/config.yaml already exists, skipping")
+
+
+@app.command(name="teams-init")
+def teams_init():
+    """Generate flowa-core/teams_config.py with Teams notification presets to customize."""
+    base_dir = os.path.join(os.getcwd(), "flowa-core")
+    config_path = os.path.join(base_dir, "teams_config.py")
+
+    if not os.path.exists(base_dir):
+        typer.echo("flowa-core/ not found. Run 'flowa init' first.")
+        raise typer.Exit(1)
+
+    if os.path.exists(config_path):
+        typer.echo("flowa-core/teams_config.py already exists, skipping")
+        return
+
+    with open(config_path, "w", encoding="utf-8") as f:
+        f.write(TEAMS_CONFIG_TEMPLATE)
+    typer.echo("Created flowa-core/teams_config.py — edit it to customize your Teams notifications.")
 
 
 @app.command()
