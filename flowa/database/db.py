@@ -24,9 +24,13 @@ CREATE TABLE IF NOT EXISTS step_runs (
 
 def get_connection() -> sqlite3.Connection:
     db_path = os.getenv("FLOWA_DB_PATH", "flowa-core/data/flowa.db")
+    os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
     conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+    except Exception:
+        pass  # WAL not supported on some filesystems (e.g. WSL2 via Windows process)
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
 

@@ -4,3 +4,5 @@ apscheduler
 fastapi
 uvicorn[standard]
 httpx
+requests
+urllib3

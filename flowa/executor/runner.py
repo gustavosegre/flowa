@@ -1,7 +1,9 @@
 import subprocess
 import sys
 import os
+import time
 import logging
+import threading
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 
@@ -18,15 +20,49 @@ logger = logging.getLogger(__name__)
 
 LOGS_DIR = os.getenv("FLOWA_LOGS_DIR", "flowa-core/logs")
 
+# run_id -> {"stop_event": threading.Event, "proc": subprocess.Popen | None}
+_active_runs: dict = {}
+_runs_lock = threading.Lock()
 
-def _build_command(run: str) -> str:
-    """Resolve the interpreter for .sh and .bat scripts."""
+
+def _register_run(run_id: int) -> threading.Event:
+    stop_event = threading.Event()
+    with _runs_lock:
+        _active_runs[run_id] = {"stop_event": stop_event, "proc": None}
+    return stop_event
+
+
+def _set_active_proc(run_id: int, proc) -> None:
+    with _runs_lock:
+        if run_id in _active_runs:
+            _active_runs[run_id]["proc"] = proc
+
+
+def _unregister_run(run_id: int) -> None:
+    with _runs_lock:
+        _active_runs.pop(run_id, None)
+
+
+def request_stop(run_id: int) -> bool:
+    with _runs_lock:
+        if run_id not in _active_runs:
+            return False
+        info = _active_runs[run_id]
+        info["stop_event"].set()
+        proc = info.get("proc")
+        if proc and proc.poll() is None:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+        return True
+
+
+def _build_command(run: str, use_uv: bool = False) -> str:
     first_token = run.split()[0]
     ext = os.path.splitext(first_token)[1].lower()
 
     if ext == ".sh":
-        if sys.platform == "win32":
-            return f"bash {run}"
         return f"bash {run}"
 
     if ext == ".bat":
@@ -35,33 +71,68 @@ def _build_command(run: str) -> str:
         logger.warning(f"Running .bat file on non-Windows platform: {run}")
         return f"cmd /c {run}"
 
+    if use_uv and (first_token in ("python", "python3") or first_token.endswith("python") or first_token.endswith("python3")):
+        return f"uv run {run}"
+
     return run
+
+
+def _subprocess_env() -> dict:
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
+    return env
 
 
 class Executor:
 
-    def run_step(self, step, run_dir: str):
+    def run_step(self, step, run_dir: str, run_id: int = None, stop_event: threading.Event = None):
         log_file = os.path.join(run_dir, f"{step.name}.log")
-        command = _build_command(step.run)
+        command = _build_command(step.run, use_uv=step.use_uv)
+        env = _subprocess_env()
 
         for attempt in range(1, step.retries + 2):
             logger.info(f"[step:{step.name}] attempt {attempt}/{step.retries + 1}")
 
             try:
-                with open(log_file, "w") as f:
-                    process = subprocess.run(
+                with open(log_file, "wb") as f:
+                    proc = subprocess.Popen(
                         command,
                         shell=True,
                         stdout=f,
                         stderr=f,
-                        timeout=step.timeout_seconds,
                         cwd=step.working_dir or None,
+                        env=env,
                     )
-                    f.write(f"\n[flowa] exit code: {process.returncode}\n")
 
-                if process.returncode != 0:
+                    if run_id is not None:
+                        _set_active_proc(run_id, proc)
+
+                    deadline = (time.monotonic() + step.timeout_seconds) if step.timeout_seconds else None
+
+                    while proc.poll() is None:
+                        if stop_event and stop_event.is_set():
+                            proc.terminate()
+                            try:
+                                proc.wait(timeout=5)
+                            except subprocess.TimeoutExpired:
+                                proc.kill()
+                                proc.wait()
+                            raise Exception(f"[step:{step.name}] stopped by user request")
+
+                        if deadline and time.monotonic() > deadline:
+                            proc.kill()
+                            proc.wait()
+                            raise subprocess.TimeoutExpired(command, step.timeout_seconds)
+
+                        time.sleep(0.05)
+
+                with open(log_file, "ab") as f:
+                    f.write(f"\n[flowa] exit code: {proc.returncode}\n".encode("utf-8"))
+
+                if proc.returncode != 0:
                     raise Exception(
-                        f"[step:{step.name}] exited with code {process.returncode}"
+                        f"[step:{step.name}] exited with code {proc.returncode}"
                     )
 
                 logger.info(f"[step:{step.name}] finished successfully")
@@ -74,6 +145,8 @@ class Executor:
                     raise Exception(msg)
 
             except Exception as e:
+                if "stopped by user request" in str(e):
+                    raise
                 if attempt <= step.retries:
                     logger.warning(
                         f"[step:{step.name}] attempt {attempt} failed, retrying... ({e})"
@@ -81,11 +154,11 @@ class Executor:
                 else:
                     raise
 
-    def _execute_step(self, step, run_dir: str, pipeline_run_id: int):
+    def _execute_step(self, step, run_dir: str, pipeline_run_id: int, stop_event: threading.Event = None):
         log_file = os.path.join(run_dir, f"{step.name}.log")
         step_run_id = create_step_run(pipeline_run_id, step.name, log_file)
         try:
-            self.run_step(step, run_dir)
+            self.run_step(step, run_dir, run_id=pipeline_run_id, stop_event=stop_event)
             finish_step_run(step_run_id, "SUCCESS")
         except Exception:
             finish_step_run(step_run_id, "FAILED")
@@ -111,66 +184,107 @@ class Executor:
 
         logger.info(f"[pipeline:{pipeline.name}] logs at {run_dir} | run_id={pipeline_run_id}")
 
-        completed = set()
-        hard_failed = set()
-        results = {}
-        pending = list(pipeline.steps)
+        stop_event = _register_run(pipeline_run_id)
+        started_at = datetime.now()
+        overall = "FAILED"
 
-        with ThreadPoolExecutor(max_workers=pipeline.max_parallel) as pool:
-            futures = {}
+        try:
+            completed = set()
+            hard_failed = set()
+            results = {}
+            pending = list(pipeline.steps)
 
-            while pending or futures:
-                ready = []
-                still_pending = []
+            with ThreadPoolExecutor(max_workers=pipeline.max_parallel) as pool:
+                futures = {}
 
-                for step in pending:
-                    if any(dep in hard_failed for dep in step.depends_on):
-                        results[step.name] = "SKIPPED"
-                        record_step_skipped(pipeline_run_id, step.name)
-                        logger.warning(f"[step:{step.name}] skipped (dependency failed)")
-                        continue
+                while pending or futures:
+                    if stop_event.is_set():
+                        for step in pending:
+                            results[step.name] = "SKIPPED"
+                            record_step_skipped(pipeline_run_id, step.name)
+                        break
 
-                    if all(dep in completed for dep in step.depends_on):
-                        ready.append(step)
-                    else:
-                        still_pending.append(step)
+                    ready = []
+                    still_pending = []
 
-                pending = still_pending
-
-                for step in ready:
-                    logger.info(f"[step:{step.name}] queued for execution")
-                    future = pool.submit(self._execute_step, step, run_dir, pipeline_run_id)
-                    futures[future] = step
-
-                if not futures:
                     for step in pending:
-                        results[step.name] = "SKIPPED"
-                        record_step_skipped(pipeline_run_id, step.name)
-                        logger.warning(f"[step:{step.name}] skipped (unresolvable dependency)")
-                    break
+                        if any(dep in hard_failed for dep in step.depends_on):
+                            results[step.name] = "SKIPPED"
+                            record_step_skipped(pipeline_run_id, step.name)
+                            logger.warning(f"[step:{step.name}] skipped (dependency failed)")
+                            continue
 
-                done, _ = wait(futures, return_when=FIRST_COMPLETED)
-
-                for future in done:
-                    step = futures.pop(future)
-                    try:
-                        future.result()
-                        completed.add(step.name)
-                        results[step.name] = "SUCCESS"
-                    except Exception as e:
-                        logger.error(f"[step:{step.name}] failed: {e}")
-                        if step.continue_on_error:
-                            completed.add(step.name)
-                            results[step.name] = "FAILED (ignored)"
-                            logger.warning(f"[step:{step.name}] continue_on_error=true, proceeding")
+                        if all(dep in completed for dep in step.depends_on):
+                            ready.append(step)
                         else:
-                            hard_failed.add(step.name)
-                            results[step.name] = "FAILED"
+                            still_pending.append(step)
 
-        overall = "FAILED" if hard_failed else "SUCCESS"
-        finish_pipeline_run(pipeline_run_id, overall)
+                    pending = still_pending
 
-        self._print_summary(pipeline.name, results)
+                    for step in ready:
+                        logger.info(f"[step:{step.name}] queued for execution")
+                        future = pool.submit(
+                            self._execute_step, step, run_dir, pipeline_run_id, stop_event
+                        )
+                        futures[future] = step
+
+                    if not futures:
+                        for step in pending:
+                            results[step.name] = "SKIPPED"
+                            record_step_skipped(pipeline_run_id, step.name)
+                            logger.warning(f"[step:{step.name}] skipped (unresolvable dependency)")
+                        break
+
+                    done, _ = wait(futures, return_when=FIRST_COMPLETED)
+
+                    for future in done:
+                        step = futures.pop(future)
+                        try:
+                            future.result()
+                            completed.add(step.name)
+                            results[step.name] = "SUCCESS"
+                        except Exception as e:
+                            logger.error(f"[step:{step.name}] failed: {e}")
+                            if "stopped by user request" in str(e):
+                                hard_failed.add(step.name)
+                                results[step.name] = "STOPPED"
+                            elif step.continue_on_error:
+                                completed.add(step.name)
+                                results[step.name] = "FAILED (ignored)"
+                                logger.warning(f"[step:{step.name}] continue_on_error=true, proceeding")
+                            else:
+                                hard_failed.add(step.name)
+                                results[step.name] = "FAILED"
+
+            if stop_event.is_set():
+                overall = "STOPPED"
+            else:
+                overall = "FAILED" if hard_failed else "SUCCESS"
+
+        finally:
+            _unregister_run(pipeline_run_id)
+            finish_pipeline_run(pipeline_run_id, overall)
+            self._print_summary(pipeline.name, results)
+
+            # Teams notification
+            if getattr(pipeline, "teams_chat", None):
+                try:
+                    from flowa.utils.teams_notifier import notify
+                    duration = (datetime.now() - started_at).total_seconds()
+                    success = overall == "SUCCESS"
+                    failed_steps = [s for s, r in results.items() if "FAIL" in r]
+                    details = (f"Steps com falha: {', '.join(failed_steps)}") if failed_steps else None
+                    notify(
+                        webhook_url=pipeline.teams_chat,
+                        title=f"Pipeline '{pipeline.name}' — {overall}",
+                        message=f"Execução finalizada com status {overall}.",
+                        success=success,
+                        details=details,
+                        duration=duration,
+                    )
+                except Exception as e:
+                    logger.warning(f"[teams] failed to send notification: {e}")
+
         return results
 
     def _print_summary(self, pipeline_name, results):

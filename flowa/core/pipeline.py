@@ -11,6 +11,7 @@ class Step:
     continue_on_error: bool = False
     timeout_seconds: Optional[int] = None
     working_dir: Optional[str] = None
+    use_uv: bool = False
 
 
 @dataclass
@@ -19,3 +20,6 @@ class Pipeline:
     steps: List[Step]
     schedule: Optional[object] = None
     max_parallel: int = 4
+    workspace: Optional[str] = None
+    teams_chat: Optional[str] = None
+    use_uv: bool = False

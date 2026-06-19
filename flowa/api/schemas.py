@@ -2,10 +2,20 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 
+class StepInfo(BaseModel):
+    name: str
+    depends_on: List[str] = []
+
+
 class PipelineInfo(BaseModel):
     name: str
     file: str
     has_schedule: bool
+    workspace: Optional[str] = None
+    teams_chat: Optional[str] = None
+    steps: List[StepInfo] = []
+    last_run_id: Optional[int] = None
+    last_status: Optional[str] = None
 
 
 class TriggerResponse(BaseModel):
@@ -13,6 +23,11 @@ class TriggerResponse(BaseModel):
     pipeline_name: str
     status: str
     run_dir: str
+
+
+class StopResponse(BaseModel):
+    stopped: bool
+    run_id: int
 
 
 class StepRunSchema(BaseModel):

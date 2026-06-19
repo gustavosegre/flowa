@@ -39,9 +39,7 @@
       --ease: 120ms ease;
     }
 
-    html {
-      scroll-behavior: smooth;
-    }
+    html { scroll-behavior: smooth; }
 
     body {
       background: var(--bg);
@@ -100,15 +98,8 @@
       cursor: pointer;
     }
 
-    nav a:hover {
-      color: var(--text);
-      background: var(--surface-2);
-    }
-
-    nav a.active {
-      color: var(--accent);
-      background: var(--accent-dim);
-    }
+    nav a:hover { color: var(--text); background: var(--surface-2); }
+    nav a.active { color: var(--accent); background: var(--accent-dim); }
 
     .header-right {
       margin-left: auto;
@@ -144,19 +135,70 @@
       transition: color var(--ease);
     }
 
-    .breadcrumb .crumb:hover {
-      color: var(--accent);
+    .breadcrumb .crumb:hover { color: var(--accent); }
+    .breadcrumb .sep { margin: 0 8px; color: var(--text-dim); }
+    .breadcrumb .current { color: var(--text); }
+
+    /* ── Workspace groups ─────────────────────────── */
+    .workspace-group {
+      margin-bottom: 20px;
     }
 
-    .breadcrumb .sep {
-      margin: 0 8px;
-      color: var(--text-dim);
+    .workspace-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      cursor: pointer;
+      user-select: none;
+      transition: border-color var(--ease);
+      margin-bottom: 1px;
     }
 
-    .breadcrumb .current {
+    .workspace-header:hover { border-color: var(--border-2); }
+
+    .workspace-header.open {
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+      border-color: var(--border-2);
+    }
+
+    .workspace-chevron {
+      color: var(--text-muted);
+      font-size: 10px;
+      transition: transform var(--ease);
+      flex-shrink: 0;
+    }
+
+    .workspace-header.open .workspace-chevron { transform: rotate(90deg); }
+
+    .workspace-name {
+      font-size: 12px;
+      font-weight: 500;
       color: var(--text);
+      flex: 1;
     }
 
+    .workspace-count {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .workspace-body {
+      display: none;
+      padding: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border-2);
+      border-top: none;
+      border-radius: 0 0 var(--r) var(--r);
+    }
+
+    .workspace-body.open { display: block; }
+
+    /* ── Pipeline grid & cards ───────────────────── */
     .pipeline-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -164,16 +206,18 @@
     }
 
     .pipeline-card {
-      background: var(--surface);
+      background: var(--surface-2);
       border: 1px solid var(--border);
       border-radius: var(--r);
       padding: 18px 20px;
       transition: border-color var(--ease);
     }
 
-    .pipeline-card:hover {
-      border-color: var(--border-2);
+    .workspace-body .pipeline-card {
+      background: var(--bg);
     }
+
+    .pipeline-card:hover { border-color: var(--border-2); }
 
     .card-name {
       font-size: 13px;
@@ -185,13 +229,42 @@
     .card-file {
       font-size: 11px;
       color: var(--text-muted);
-      margin-bottom: 16px;
+      margin-bottom: 8px;
     }
+
+    /* depends_on tree */
+    .card-deps {
+      margin-bottom: 12px;
+      padding: 8px 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      font-size: 10.5px;
+      color: var(--text-muted);
+      line-height: 1.8;
+    }
+
+    .workspace-body .card-deps {
+      background: var(--surface);
+    }
+
+    .card-deps-title {
+      font-size: 9.5px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+      margin-bottom: 4px;
+    }
+
+    .dep-line { white-space: pre; }
+    .dep-leaf { color: var(--text); }
+    .dep-dep { color: var(--accent); font-size: 10px; }
 
     .card-actions {
       display: flex;
       gap: 8px;
       align-items: center;
+      flex-wrap: wrap;
     }
 
     .btn {
@@ -207,30 +280,16 @@
       outline: none;
     }
 
-    .btn:hover {
-      border-color: var(--text-muted);
-      color: var(--text);
-      background: var(--surface-2);
-    }
+    .btn:hover { border-color: var(--text-muted); color: var(--text); background: var(--surface-2); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    .btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
+    .btn.primary { border-color: var(--accent); color: var(--accent); }
+    .btn.primary:hover { background: var(--accent-dim); }
 
-    .btn.primary {
-      border-color: var(--accent);
-      color: var(--accent);
-    }
+    .btn.danger { border-color: var(--red); color: var(--red); }
+    .btn.danger:hover { background: var(--red-dim); }
 
-    .btn.primary:hover {
-      background: var(--accent-dim);
-    }
-
-    .btn.sm {
-      padding: 3px 10px;
-      font-size: 11px;
-    }
+    .btn.sm { padding: 3px 10px; font-size: 11px; }
 
     .badge {
       display: inline-block;
@@ -242,20 +301,13 @@
       background: var(--surface-2);
     }
 
-    .badge.scheduled {
-      border-color: var(--accent);
-      color: var(--accent);
-      background: var(--accent-dim);
-    }
+    .badge.scheduled { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+    .badge.teams { border-color: #7b68ee; color: #7b68ee; background: rgba(123,104,238,0.08); }
+    .badge.running { border-color: var(--blue); color: var(--blue); background: var(--blue-dim); }
 
-    .table-wrap {
-      overflow-x: auto;
-    }
+    .table-wrap { overflow-x: auto; }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
+    table { width: 100%; border-collapse: collapse; }
 
     th {
       text-align: left;
@@ -275,17 +327,9 @@
       vertical-align: middle;
     }
 
-    tr.clickable {
-      cursor: pointer;
-    }
-
-    tr.clickable:hover td {
-      background: var(--surface-2);
-    }
-
-    tr:last-child td {
-      border-bottom: none;
-    }
+    tr.clickable { cursor: pointer; }
+    tr.clickable:hover td { background: var(--surface-2); }
+    tr:last-child td { border-bottom: none; }
 
     .status {
       display: inline-flex;
@@ -303,60 +347,22 @@
       flex-shrink: 0;
     }
 
-    .status-SUCCESS {
-      color: var(--accent);
-    }
-
-    .status-SUCCESS .dot {
-      background: var(--accent);
-      box-shadow: 0 0 5px var(--accent);
-    }
-
-    .status-FAILED {
-      color: var(--red);
-    }
-
-    .status-FAILED .dot {
-      background: var(--red);
-    }
-
-    .status-RUNNING {
-      color: var(--blue);
-    }
-
-    .status-RUNNING .dot {
-      background: var(--blue);
-      animation: pulse 1.4s ease-in-out infinite;
-    }
-
-    .status-SKIPPED {
-      color: var(--text-muted);
-    }
-
-    .status-SKIPPED .dot {
-      background: var(--border-2);
-    }
-
-    .status-FAILED-IGNORED {
-      color: var(--orange);
-    }
-
-    .status-FAILED-IGNORED .dot {
-      background: var(--orange);
-    }
+    .status-SUCCESS { color: var(--accent); }
+    .status-SUCCESS .dot { background: var(--accent); box-shadow: 0 0 5px var(--accent); }
+    .status-FAILED { color: var(--red); }
+    .status-FAILED .dot { background: var(--red); }
+    .status-RUNNING { color: var(--blue); }
+    .status-RUNNING .dot { background: var(--blue); animation: pulse 1.4s ease-in-out infinite; }
+    .status-STOPPED { color: var(--orange); }
+    .status-STOPPED .dot { background: var(--orange); }
+    .status-SKIPPED { color: var(--text-muted); }
+    .status-SKIPPED .dot { background: var(--border-2); }
+    .status-FAILED-IGNORED { color: var(--orange); }
+    .status-FAILED-IGNORED .dot { background: var(--orange); }
 
     @keyframes pulse {
-
-      0%,
-      100% {
-        opacity: 1;
-        transform: scale(1);
-      }
-
-      50% {
-        opacity: 0.3;
-        transform: scale(0.7);
-      }
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.3; transform: scale(0.7); }
     }
 
     .run-meta {
@@ -375,10 +381,7 @@
       flex: 0 0 auto;
     }
 
-    .run-meta-cell:last-child {
-      border-right: none;
-      flex: 1;
-    }
+    .run-meta-cell:last-child { border-right: none; flex: 1; }
 
     .meta-label {
       font-size: 9.5px;
@@ -388,10 +391,7 @@
       margin-bottom: 5px;
     }
 
-    .meta-value {
-      font-size: 12px;
-      color: var(--text);
-    }
+    .meta-value { font-size: 12px; color: var(--text); }
 
     .log-header {
       display: flex;
@@ -400,14 +400,8 @@
       margin-bottom: 10px;
     }
 
-    .log-filename {
-      font-size: 11px;
-      color: var(--text-muted);
-    }
-
-    .log-filename span {
-      color: var(--text);
-    }
+    .log-filename { font-size: 11px; color: var(--text-muted); }
+    .log-filename span { color: var(--text); }
 
     .log-content {
       background: var(--surface);
@@ -423,19 +417,9 @@
       tab-size: 4;
     }
 
-    .log-content::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-
-    .log-content::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    .log-content::-webkit-scrollbar-thumb {
-      background: var(--border-2);
-      border-radius: 3px;
-    }
+    .log-content::-webkit-scrollbar { width: 6px; height: 6px; }
+    .log-content::-webkit-scrollbar-track { background: transparent; }
+    .log-content::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 3px; }
 
     .empty {
       display: flex;
@@ -447,20 +431,9 @@
       gap: 10px;
     }
 
-    .empty-glyph {
-      font-size: 28px;
-      color: var(--border-2);
-    }
-
-    .empty-title {
-      font-size: 13px;
-      color: var(--text-muted);
-    }
-
-    .empty-sub {
-      font-size: 11px;
-      color: var(--text-dim);
-    }
+    .empty-glyph { font-size: 28px; color: var(--border-2); }
+    .empty-title { font-size: 13px; color: var(--text-muted); }
+    .empty-sub { font-size: 11px; color: var(--text-dim); }
 
     .loading {
       display: flex;
@@ -481,11 +454,7 @@
       animation: spin 0.7s linear infinite;
     }
 
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     .toast {
       position: fixed;
@@ -502,42 +471,19 @@
       pointer-events: none;
     }
 
-    .toast.ok {
-      border-color: var(--accent);
-      color: var(--accent);
-    }
-
-    .toast.err {
-      border-color: var(--red);
-      color: var(--red);
-    }
+    .toast.ok { border-color: var(--accent); color: var(--accent); }
+    .toast.err { border-color: var(--red); color: var(--red); }
 
     @keyframes toast-in {
-      from {
-        transform: translateY(6px);
-        opacity: 0;
-      }
-
-      to {
-        transform: translateY(0);
-        opacity: 1;
-      }
+      from { transform: translateY(6px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
     }
 
-    code {
-      color: var(--accent);
-      font-family: var(--font);
-    }
+    code { color: var(--accent); font-family: var(--font); }
+    .mono { font-family: var(--font); }
+    .dim { color: var(--text-muted); }
 
-    .mono {
-      font-family: var(--font);
-    }
-
-    .dim {
-      color: var(--text-muted);
-    }
-
-    /* ── Dashboard ───────────────────────────────────── */
+    /* ── Dashboard ───────────────────────────────── */
     .stat-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -581,10 +527,7 @@
       flex: 1;
     }
 
-    .chart-card.fixed {
-      flex: 0 0 auto;
-      min-width: 168px;
-    }
+    .chart-card.fixed { flex: 0 0 auto; min-width: 168px; }
 
     .chart-title {
       font-size: 10px;
@@ -601,16 +544,8 @@
       gap: 10px;
     }
 
-    .chart-legend {
-      display: flex;
-      gap: 16px;
-      margin-top: 10px;
-    }
-
-    .chart-legend span {
-      font-size: 10px;
-      color: var(--text-muted);
-    }
+    .chart-legend { display: flex; gap: 16px; margin-top: 10px; }
+    .chart-legend span { font-size: 10px; color: var(--text-muted); }
   </style>
 </head>
 
@@ -685,6 +620,7 @@
       run: (id) => api._get(`/runs/${id}`),
       logs: (id, step) => api._get(`/runs/${id}/steps/${encodeURIComponent(step)}/logs`),
       trigger: (name) => api._post(`/pipelines/${encodeURIComponent(name)}/run`),
+      stop: (runId) => api._post(`/runs/${runId}/stop`),
     };
 
     function dur(a, b) {
@@ -728,11 +664,8 @@
     function statusHtml(status) {
       const cls = status.replace(/[\s()]/g, '-').replace(/-+/g, '-');
       const icons = {
-        'SUCCESS': '✓',
-        'FAILED': '✗',
-        'FAILED (ignored)': '~',
-        'SKIPPED': '—',
-        'RUNNING': '↻',
+        'SUCCESS': '✓', 'FAILED': '✗', 'FAILED (ignored)': '~',
+        'SKIPPED': '—', 'RUNNING': '↻', 'STOPPED': '⏹',
       };
       const icon = icons[status] ?? '?';
       return `<span class="status status-${cls}"><span class="dot"></span>${icon} ${esc(status)}</span>`;
@@ -757,6 +690,76 @@
       document.getElementById('header-right').innerHTML = html || '';
     }
 
+    // Build a simple dependency tree from steps array
+    function buildDepsTree(steps) {
+      if (!steps || steps.length === 0) return '';
+      const hasDeps = steps.some(s => s.depends_on && s.depends_on.length > 0);
+      if (!hasDeps) return '';
+
+      // Build adjacency: children[parent] = [child, ...]
+      const children = {};
+      const hasParent = new Set();
+      steps.forEach(s => {
+        if (!children[s.name]) children[s.name] = [];
+        (s.depends_on || []).forEach(dep => {
+          if (!children[dep]) children[dep] = [];
+          children[dep].push(s.name);
+          hasParent.add(s.name);
+        });
+      });
+
+      const roots = steps.filter(s => !hasParent.has(s.name)).map(s => s.name);
+
+      function renderNode(name, prefix, isLast) {
+        const connector = isLast ? '└─ ' : '├─ ';
+        const childPrefix = isLast ? '   ' : '│  ';
+        const kids = children[name] || [];
+        let out = `<div class="dep-line">${esc(prefix)}${esc(connector)}<span class="dep-leaf">${esc(name)}</span></div>`;
+        kids.forEach((kid, i) => {
+          out += renderNode(kid, prefix + childPrefix, i === kids.length - 1);
+        });
+        return out;
+      }
+
+      let html = '';
+      roots.forEach((root, i) => {
+        const isLast = i === roots.length - 1;
+        html += renderNode(root, '', isLast);
+      });
+
+      return `<div class="card-deps"><div class="card-deps-title">steps</div>${html}</div>`;
+    }
+
+    function buildPipelineCard(p) {
+      const isRunning = p.last_status === 'RUNNING';
+      const badges = [];
+      if (p.has_schedule) badges.push('<span class="badge scheduled">⏱ scheduled</span>');
+      else badges.push('<span class="badge">manual</span>');
+      if (p.teams_chat) badges.push('<span class="badge teams">teams</span>');
+      if (isRunning) badges.push('<span class="badge running">↻ running</span>');
+
+      const depsTree = buildDepsTree(p.steps || []);
+
+      const stopBtn = isRunning && p.last_run_id
+        ? `<button class="btn danger sm" data-action="stop" data-run-id="${p.last_run_id}">⏹ stop</button>`
+        : '';
+
+      return `
+    <div class="pipeline-card">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:3px">
+        <div class="card-name">${esc(p.name)}</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">${badges.join('')}</div>
+      </div>
+      <div class="card-file">${esc(p.file)}</div>
+      ${depsTree}
+      <div class="card-actions">
+        <button class="btn primary" data-action="trigger" data-name="${esc(p.name)}" ${isRunning ? 'disabled' : ''}>▶ run</button>
+        <button class="btn" data-action="pipeline-history" data-name="${esc(p.name)}">history</button>
+        ${stopBtn}
+      </div>
+    </div>`;
+    }
+
     async function viewPipelines() {
       setNav('pipelines');
       headerRight('');
@@ -771,24 +774,44 @@
     </div>`;
       }
 
-      const cards = pipelines.map(p => `
-    <div class="pipeline-card">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:3px">
-        <div class="card-name">${esc(p.name)}</div>
-        ${p.has_schedule
-          ? '<span class="badge scheduled">⏱ scheduled</span>'
-          : '<span class="badge">manual</span>'}
-      </div>
-      <div class="card-file">${esc(p.file)}</div>
-      <div class="card-actions">
-        <button class="btn primary" data-action="trigger" data-name="${esc(p.name)}">▶ run</button>
-        <button class="btn" data-action="pipeline-history" data-name="${esc(p.name)}">history</button>
-      </div>
-    </div>
-  `).join('');
+      // Separate into workspaced and ungrouped
+      const workspaces = {};
+      const ungrouped = [];
 
-      return `<div class="section-label">pipelines — ${pipelines.length} found</div>
-  <div class="pipeline-grid">${cards}</div>`;
+      pipelines.forEach(p => {
+        if (p.workspace) {
+          if (!workspaces[p.workspace]) workspaces[p.workspace] = [];
+          workspaces[p.workspace].push(p);
+        } else {
+          ungrouped.push(p);
+        }
+      });
+
+      let html = `<div class="section-label">pipelines — ${pipelines.length} found</div>`;
+
+      // Workspace groups
+      Object.entries(workspaces).forEach(([name, items]) => {
+        const cards = items.map(buildPipelineCard).join('');
+        html += `
+      <div class="workspace-group">
+        <div class="workspace-header open" data-ws-toggle>
+          <span class="workspace-chevron">▶</span>
+          <span class="workspace-name">◈ ${esc(name)}</span>
+          <span class="workspace-count">${items.length} pipeline${items.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div class="workspace-body open">
+          <div class="pipeline-grid">${cards}</div>
+        </div>
+      </div>`;
+      });
+
+      // Ungrouped cards
+      if (ungrouped.length) {
+        const cards = ungrouped.map(buildPipelineCard).join('');
+        html += `<div class="pipeline-grid">${cards}</div>`;
+      }
+
+      return html;
     }
 
     async function viewHistory(pipelineFilter) {
@@ -858,6 +881,15 @@
     <span class="current">run #${run.id}</span>
   </div>`;
 
+      const stopCell = run.status === 'RUNNING'
+        ? `<div class="run-meta-cell">
+            <div class="meta-label">action</div>
+            <div class="meta-value">
+              <button class="btn danger sm" data-action="stop" data-run-id="${run.id}">⏹ stop run</button>
+            </div>
+           </div>`
+        : '';
+
       const meta = `<div class="run-meta">
     <div class="run-meta-cell">
       <div class="meta-label">status</div>
@@ -875,6 +907,7 @@
       <div class="meta-label">run dir</div>
       <div class="meta-value" style="font-size:11px; color:var(--text-muted)">${esc(run.run_dir || '—')}</div>
     </div>
+    ${stopCell}
   </div>`;
 
       const stepRows = run.steps.map(s => `
@@ -891,9 +924,7 @@
   `).join('');
 
       const noSteps = run.steps.length === 0
-        ? `<div class="empty" style="padding:32px 0">
-        <div class="empty-sub">no steps recorded yet</div>
-      </div>`
+        ? `<div class="empty" style="padding:32px 0"><div class="empty-sub">no steps recorded yet</div></div>`
         : '';
 
       return breadcrumb + meta
@@ -1113,8 +1144,25 @@
     }
 
     function attachHandlers() {
-      document.getElementById('main').addEventListener('click', async e => {
+      const main = document.getElementById('main');
+
+      // Remove previous listener before attaching a new one
+      if (main._clickHandler) {
+        main.removeEventListener('click', main._clickHandler);
+      }
+
+      main._clickHandler = async (e) => {
         const el = e.target.closest('[data-action]');
+        const wsToggle = e.target.closest('[data-ws-toggle]');
+
+        // Workspace expand/collapse
+        if (wsToggle && !el) {
+          wsToggle.classList.toggle('open');
+          const body = wsToggle.nextElementSibling;
+          if (body) body.classList.toggle('open');
+          return;
+        }
+
         if (!el) return;
         const action = el.dataset.action;
 
@@ -1133,6 +1181,21 @@
           }
         }
 
+        if (action === 'stop') {
+          const runId = el.dataset.runId;
+          el.disabled = true;
+          el.textContent = '...';
+          try {
+            await api.stop(runId);
+            toast(`run #${runId} stop requested`, 'ok');
+            setTimeout(() => render(), 800);
+          } catch (err) {
+            toast(err.message, 'err');
+            el.disabled = false;
+            el.textContent = '⏹ stop';
+          }
+        }
+
         if (action === 'pipeline-history') {
           go(`/history/${encodeURIComponent(el.dataset.name)}`);
         }
@@ -1144,7 +1207,9 @@
         if (action === 'view-logs') {
           go(`/runs/${el.dataset.run}/steps/${encodeURIComponent(el.dataset.step)}/logs`);
         }
-      }, { once: true });
+      };
+
+      main.addEventListener('click', main._clickHandler);
 
       const copyBtn = document.getElementById('btn-copy');
       if (copyBtn) {
