@@ -16,224 +16,479 @@ Define workflows in YAML, run them from the CLI, schedule them with cron, and mo
 - **REST API** — trigger, stop and query pipelines programmatically
 - **Web UI** — built-in dashboard to manage and monitor pipelines
 - **Script support** — run `.py`, `.sh` and `.bat` files natively
-- **Working directory** — set per-step `working_dir` for scripts that rely on relative paths
 - **Workspaces** — group pipelines by team or domain directly in the YAML
-- **Microsoft Teams notifications** — send success/failure alerts to Teams channels via webhook
+- **Microsoft Teams notifications** — Adaptive Card alerts with optional AI error analysis
+- **AI error analysis** — automatic error diagnosis via Groq, Claude, Gemini or OpenAI
 - **Stop running pipelines** — cancel an active run from the UI or API
-- **Auto-reload** — pipeline changes are picked up automatically without restarting the server
+- **Auto-reload** — pipeline changes are picked up without restarting the server
 
 ---
 
 ## What's New
 
-### v0.1.6
-- **Workspaces** — add `workspace: NAME` to any pipeline YAML to group pipelines in the UI under a collapsible section
-- **Microsoft Teams integration** — add `teams_chat: <WEBHOOK_URL>` to send Adaptive Card notifications on pipeline success/failure
-- **Stop runs** — new `POST /runs/{id}/stop` endpoint and ⏹ stop button in the UI
-- **Dependency tree on cards** — pipelines with `depends_on` show a visual tree on the pipeline card
-- **Run button fix** — trigger now uses the filename (not the internal `name:`) to locate the pipeline, preventing "not found" errors
-- **Encoding fix** — scripts with special characters, emojis or non-ASCII output no longer cause runner errors
-- **Exit code detection** — flowa now reliably detects success/failure from the process exit code regardless of whether the script calls `sys.exit()`
-- **Auto-reload** — editing a `.yaml` file is picked up on the next scheduled tick without restarting the server
+### v0.2.1
+- **AI error analysis** — on failure, flowa sends the step log to an LLM (Groq, Claude, Gemini or OpenAI) and includes the diagnosis in the Teams notification
+- **Multi-provider AI config** — `flowa-core/config.yaml` centralizes all API keys and provider settings
+- **Teams customization** — `flowa teams-init` generates `flowa-core/teams_config.py` with all card options (images, colors, icons, timeouts) ready to edit
+- **Leaf background animation** — subtle animated leaves in the web UI
+- **Enhanced UI animations** — card entrance, hover effects, glow on status dots, button feedback
+- **`global` syntax fix** — fixed a silent SyntaxError in `teams_notifier.py` that prevented notifications from being sent
 
-### v0.1.5
-- **Dashboard view** — new home page in the web UI with stat cards, 7-day bar chart and success rate donut
-- **New `GET /stats` endpoint** — powers the dashboard
-- **`.sh` and `.bat` support** — shell/batch scripts auto-detected by extension
-- **`working_dir` per step** — run scripts from the correct directory
-- **Exit code in log file** — every step log ends with `[flowa] exit code: X`
-- **New project structure** — `flowa init` creates `flowa-core/` with `pipelines/`, `logs/` and `data/`
-
-### v0.1.4
-- Initial public release
+### v0.1.6 — v0.2.0
+- Workspaces, Teams integration, stop runs, dependency tree on cards, encoding fix, exit code detection, auto-reload
 
 ---
 
 ## Installation
 
+### Option 1 — pip (recommended)
+
 ```bash
 pip install flowa-core
 ```
 
-Or with [uv](https://github.com/astral-sh/uv):
+### Option 2 — uv
 
 ```bash
+# Install uv first (if you don't have it)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install flowa as an isolated tool
 uv tool install flowa-core
+```
+
+### Option 3 — development / editable install
+
+Use this if you cloned the repo and want changes to reflect immediately:
+
+```bash
+git clone https://github.com/gustavosegre/flowa.git
+cd flowa
+pip install -e .
 ```
 
 **Requirements:** Python 3.11+
 
 ---
 
-## Getting Started
+## Getting Started — Step by Step
 
-**Step 1 — Install**
+### Step 1 — Install
 
 ```bash
 pip install flowa-core
 ```
 
-**Step 2 — Initialize your project**
+Verify the installation:
 
 ```bash
+flowa --help
+```
+
+---
+
+### Step 2 — Initialize your project
+
+Navigate to your project folder and run:
+
+```bash
+cd my-project
 flowa init
 ```
 
-This creates the `flowa-core/` directory structure and a ready-to-use `etl.yaml` template:
+This creates the full project structure:
 
 ```
 my-project/
 └── flowa-core/
     ├── pipelines/
-    │   └── etl.yaml    ← edit this to match your scripts
-    ├── logs/
-    └── data/
+    │   └── etl.yaml        ← example pipeline, edit or replace
+    ├── logs/               ← step logs are written here automatically
+    ├── data/
+    │   └── flowa.db        ← SQLite database, created on first run
+    └── config.yaml         ← global config (AI keys, etc.)
 ```
 
-**Step 3 — Run a pipeline manually**
+---
+
+### Step 3 — Create your pipeline
+
+Edit `flowa-core/pipelines/etl.yaml` or create a new `.yaml` file in the same directory.
+
+A minimal pipeline looks like this:
+
+```yaml
+name: hello_world
+
+steps:
+  - name: say_hello
+    run: python scripts/hello.py
+```
+
+See the [Complete Pipeline Reference](#complete-pipeline-yaml-reference) below for all available options.
+
+---
+
+### Step 4 — Run manually (test before scheduling)
 
 ```bash
 flowa run flowa-core/pipelines/etl.yaml
 ```
 
-**Step 4 — Start the server**
-
-```bash
-flowa server
-# → API + scheduler + web UI at http://127.0.0.1:8000
-```
-
-Open `http://127.0.0.1:8000` to see the dashboard, monitor runs, and trigger pipelines.
+This runs the pipeline in the foreground and prints the result to the terminal. Use this to validate your pipeline before turning on the scheduler.
 
 ---
 
-## Pipeline YAML Reference
+### Step 5 — Start the server
 
-```yaml
-name: my_pipeline          # required — display name
-workspace: Finance         # optional — groups pipelines in the UI
-max_parallel: 4            # max concurrent steps (default: 4)
-use_uv: false              # run python steps via uv (default: false)
-teams_chat: https://...    # optional — Teams webhook URL for notifications
-
-schedule:                  # optional
-  days: All Days           # All Days | Mon,Tue,Wed,Thu,Fri | ["Mon", "Fri"]
-  start: "09:00"
-  end:   "18:00"
-  interval_minutes: 60
-
-steps:
-  - name: step_name           # required, must be unique within the pipeline
-    run: command or script    # required — see examples below
-    depends_on: other_step    # optional — string or list
-    retries: 0                # optional, default 0
-    timeout_seconds: 60       # optional, no limit by default
-    continue_on_error: false  # optional, default false
-    working_dir: /path/to/dir # optional, working directory for this step
-    use_uv: false             # optional, overrides pipeline-level use_uv
+```bash
+flowa server
 ```
 
-### Workspaces
+This starts:
+- The **REST API** (FastAPI)
+- The **web UI** dashboard
+- The **background scheduler** (picks up all `.yaml` files in `flowa-core/pipelines/`)
 
-Add `workspace` to group related pipelines together in the UI. Pipelines with the same workspace are shown under a collapsible dropdown:
+Open `http://127.0.0.1:8000` in your browser.
+
+```bash
+# Custom host and port
+flowa server --host 0.0.0.0 --port 8080
+
+# Disable the scheduler (API + UI only)
+flowa server --no-scheduler
+```
+
+---
+
+### Step 6 — (Optional) Set up Teams notifications
+
+```bash
+flowa teams-init
+```
+
+This generates `flowa-core/teams_config.py` with all customization options. Then add the webhook URL to your pipeline YAML:
 
 ```yaml
-# finance/etl.yaml
-name: ETL Finance
+teams_chat: https://your-org.webhook.office.com/webhookb2/...
+```
+
+See [Teams Notifications](#teams-notifications) for details.
+
+---
+
+### Step 7 — (Optional) Enable AI error analysis
+
+Edit `flowa-core/config.yaml` and set your provider and API key:
+
+```yaml
+ai:
+  provider: groq
+  analyze_errors: true
+
+  groq:
+    api_key: "gsk_..."
+```
+
+When a pipeline fails, flowa will automatically send the error log to the AI and include the diagnosis in the Teams notification card.
+
+---
+
+## Complete Pipeline YAML Reference
+
+Below is a fully annotated example covering every available option:
+
+```yaml
+# ─────────────────────────────────────────────────────────────
+# PIPELINE IDENTITY
+# ─────────────────────────────────────────────────────────────
+
+# Required. The display name shown in the UI and history.
+# Does not need to match the filename.
+name: finance_etl
+
+# Optional. Groups this pipeline under a collapsible section in the UI.
+# All pipelines with the same workspace value are grouped together.
+# Pipelines without workspace appear ungrouped.
 workspace: Finance
-steps:
-  - name: extract
-    run: scripts/extract.py
-```
 
-```yaml
-# finance/report.yaml
-name: Monthly Report
-workspace: Finance
-steps:
-  - name: generate
-    run: scripts/report.py
-```
+# ─────────────────────────────────────────────────────────────
+# NOTIFICATIONS
+# ─────────────────────────────────────────────────────────────
 
-Pipelines without a `workspace` field appear ungrouped.
-
-### Teams Notifications
-
-Add `teams_chat` with a Teams incoming webhook URL to receive Adaptive Card notifications when the pipeline finishes:
-
-```yaml
-name: ETL Finance
+# Optional. Microsoft Teams webhook URL.
+# Flowa sends an Adaptive Card on success (✅) and failure (❌).
+# If flowa-core/config.yaml has an AI provider configured,
+# failures also include an automatic error diagnosis.
+# Each pipeline can notify a different channel.
 teams_chat: https://your-org.webhook.office.com/webhookb2/...
 
+# ─────────────────────────────────────────────────────────────
+# EXECUTION SETTINGS
+# ─────────────────────────────────────────────────────────────
+
+# Optional. Maximum number of steps running at the same time.
+# Steps without dependencies run in parallel up to this limit.
+# Default: 4
+max_parallel: 3
+
+# Optional. Run Python steps using `uv run` instead of the system Python.
+# Useful when uv manages your project's virtual environment.
+# Can be overridden per step. Default: false
+use_uv: false
+
+# ─────────────────────────────────────────────────────────────
+# SCHEDULE
+# ─────────────────────────────────────────────────────────────
+
+# Optional. Remove this block entirely if you only want manual/API runs.
+schedule:
+  # Which days to run. Options:
+  #   "All Days"                    → every day of the week
+  #   "Mon,Wed,Fri"                 → specific days (comma-separated)
+  #   ["Mon", "Tue", "Wed"]        → list format also accepted
+  #   "Mon-Fri"                     → range (Monday through Friday)
+  days: Mon,Tue,Wed,Thu,Fri
+
+  # Time window: the pipeline runs repeatedly between start and end.
+  start: "08:00"
+  end: "18:00"
+
+  # How often to run within the time window (in minutes).
+  # Example: start=08:00, end=18:00, interval_minutes=60
+  #   → runs at 08:00, 09:00, 10:00, ... 18:00
+  interval_minutes: 60
+
+# ─────────────────────────────────────────────────────────────
+# STEPS
+# ─────────────────────────────────────────────────────────────
+
 steps:
-  - name: extract
-    run: scripts/extract.py
-```
 
-Flowa sends a **success** card (✅) or **failure** card (❌) automatically after each run. The card includes the pipeline name, host, timestamp, duration and last error details (if any).
+  # ── Step 1: basic Python script ──────────────────────────
+  - name: extract          # Required. Unique name within this pipeline.
+    run: python scripts/extract.py   # Required. Command to execute.
 
-To use different channels per team, just set a different webhook URL in each pipeline YAML.
+    # Optional. Directory to run the command from.
+    # Use this when your script uses relative file paths.
+    working_dir: /my-project
 
-### Running scripts
+    # Optional. Number of times to retry if the step fails.
+    # Total attempts = retries + 1. Default: 0 (no retry).
+    retries: 2
 
-Flowa detects the file extension and picks the right interpreter automatically:
+    # Optional. Kill the step if it runs longer than this (in seconds).
+    # Default: no limit.
+    timeout_seconds: 120
 
-```yaml
-steps:
-  - name: extract
-    run: scripts/extract.py       # python scripts/extract.py
-    working_dir: /my/project
+  # ── Step 2: depends on step 1 ────────────────────────────
+  - name: validate
+    run: python scripts/validate.py
 
-  - name: transform
-    run: scripts/transform.sh     # bash scripts/transform.sh
+    # Optional. This step waits for 'extract' to succeed before starting.
+    # Accepts a single name (string) or multiple names (list).
     depends_on: extract
+    # depends_on: [extract, other_step]   ← list form
 
-  - name: load
-    run: scripts/load.bat         # cmd /c scripts/load.bat  (Windows)
-    depends_on: transform
+    retries: 1
+    timeout_seconds: 60
+
+  # ── Step 3: continue even if it fails ────────────────────
+  - name: send_report
+    run: python scripts/report.py
+    depends_on: validate
+
+    # Optional. If true, downstream steps are NOT blocked when this step fails.
+    # The step status is recorded as "FAILED (ignored)" instead of "FAILED".
+    # Default: false
+    continue_on_error: true
+
+  # ── Step 4: shell script (.sh) ───────────────────────────
+  - name: cleanup
+    # Flowa detects the extension and runs with the correct interpreter:
+    #   .py  → python <script>
+    #   .sh  → bash <script>
+    #   .bat → cmd /c <script>   (Windows)
+    run: scripts/cleanup.sh
+    depends_on: [validate, send_report]
+    timeout_seconds: 30
+
+  # ── Step 5: run with uv ──────────────────────────────────
+  - name: heavy_transform
+    run: python scripts/transform.py
+
+    # Optional. Overrides the pipeline-level use_uv for this step only.
+    # When true, runs as: uv run python scripts/transform.py
+    use_uv: true
+    depends_on: extract
+    retries: 3
+    timeout_seconds: 600
 ```
 
-### `depends_on`
+---
 
-Accepts a single step name or a list:
+## Teams Notifications
+
+### Setup
+
+**1. Get a webhook URL from Microsoft Teams:**
+
+- In Teams, go to a channel → `...` → `Connectors` → `Incoming Webhook`
+- Or use Power Automate / Workflows to create a webhook trigger
+
+**2. Add the URL to your pipeline:**
 
 ```yaml
-depends_on: extract
-# or
-depends_on: [extract, validate]
+name: my_pipeline
+teams_chat: https://your-org.webhook.office.com/webhookb2/...
 ```
 
-Pipelines with `depends_on` show a dependency tree on their card in the UI.
+**3. (Optional) Customize the card appearance:**
 
-### Step status values
+```bash
+flowa teams-init
+```
 
-| Status | Description |
-|---|---|
-| `SUCCESS` | Step completed with exit code 0 |
-| `FAILED` | Step failed after all retries |
-| `FAILED (ignored)` | Step failed but `continue_on_error: true` |
-| `SKIPPED` | Step skipped because a dependency hard-failed |
+This creates `flowa-core/teams_config.py`. Edit it to change images, colors, icons and more:
+
+```python
+# flowa-core/teams_config.py
+
+APP_NAME = "My Company ETL"         # Name shown on the card header
+HOSTNAME = "prod-server-01"         # Machine identifier (default: system hostname)
+
+ICON_SUCESSO = "✅"                 # Icon on success title
+ICON_ERRO    = "❌"                 # Icon on failure title
+ICON_IA      = "🤖"                # Icon on AI analysis section
+
+IMG_SUCESSO = "https://..."         # Image shown on success cards
+IMG_ERRO    = "https://..."         # Image shown on failure cards
+IMG_TAMANHO = "Large"               # Small | Medium | Large | ExtraLarge
+IMG_ESTILO  = "Person"              # Default (rectangle) | Person (circle)
+
+COR_SUCESSO = "good"                # good | accent | dark | light | default
+COR_ERRO    = "attention"           # attention | warning | dark | default
+
+EXIBIR_DETALHES   = True           # Show the error log excerpt in the card
+EXIBIR_ANALISE_IA = True           # Show AI analysis section (if configured)
+MAX_TRACEBACK_CHARS = 700          # Max characters of log shown in the card
+
+SSL_VERIFY    = False              # Set True if your network validates SSL
+TEAMS_TIMEOUT = 10                 # Seconds before giving up on the request
+```
+
+### Using different channels per team
+
+Each pipeline can notify a different channel. Just set a different `teams_chat` URL:
+
+```yaml
+# finance_etl.yaml
+name: Finance ETL
+teams_chat: https://...webhook-finance...
+
+# ops_monitor.yaml
+name: Ops Monitor
+teams_chat: https://...webhook-ops...
+```
+
+---
+
+## AI Error Analysis
+
+When a pipeline fails and `teams_chat` is configured, flowa can automatically send the error log to an LLM and include the diagnosis in the Teams notification.
+
+### Setup
+
+Edit `flowa-core/config.yaml` (created by `flowa init`):
+
+```yaml
+ai:
+  # Which provider to use. Options: groq | claude | gemini | openai | none
+  provider: groq
+
+  # Set false to disable analysis without changing the provider.
+  analyze_errors: true
+
+  groq:
+    api_key: "gsk_..."
+    model: "llama-3.3-70b-versatile"   # default model
+    max_tokens: 500
+    timeout: 30
+
+  claude:
+    api_key: "sk-ant-..."
+    model: "claude-haiku-4-5-20251001"
+    max_tokens: 500
+    timeout: 30
+
+  gemini:
+    api_key: "AIza..."
+    model: "gemini-1.5-flash"
+    max_tokens: 500
+    timeout: 30
+
+  openai:
+    api_key: "sk-..."
+    model: "gpt-4o-mini"
+    max_tokens: 500
+    timeout: 30
+```
+
+Only configure the provider you want to use. The others are ignored.
+
+### What the AI receives
+
+When a step fails, flowa reads the step's log file and sends the last 3000 characters to the LLM with this context:
+
+> *"You are a senior Python engineer. Analyze the pipeline failure below and return: 1. Probable cause, 2. How to fix it, 3. Suspicious line, 4. Fix example."*
+
+The response is included in the Teams card under the "👾 Análise automática (IA)" section.
+
+---
+
+## Workspaces
+
+Add `workspace` to any pipeline to group it in the UI. Flowa automatically collects all pipelines with the same workspace into a collapsible section:
+
+```yaml
+# etl_vendas.yaml
+name: ETL Vendas
+workspace: Comercial
+
+# etl_estoque.yaml
+name: ETL Estoque
+workspace: Comercial
+
+# folha_pagamento.yaml
+name: Folha de Pagamento
+workspace: RH
+```
+
+Result in the UI: two collapsible groups — `Comercial` (2 pipelines) and `RH` (1 pipeline). Pipelines without `workspace` appear below the groups.
 
 ---
 
 ## CLI Reference
 
 ```bash
-flowa init                          # create flowa-core/ structure and etl.yaml template
-flowa run <pipeline.yaml>           # run a pipeline manually
-flowa start                         # start only the scheduler (blocking)
-flowa server                        # start API + web UI + scheduler
-flowa history                       # show recent runs
-flowa history <pipeline_name>       # filter by pipeline
-flowa logs <run_id>                 # show steps for a run
+flowa init                          # Create flowa-core/ structure + config templates
+flowa teams-init                    # Generate flowa-core/teams_config.py for customization
+flowa run <pipeline.yaml>           # Run a pipeline manually (foreground)
+flowa start                         # Start the scheduler only (blocking, no API)
+flowa server                        # Start API + web UI + scheduler
+flowa history                       # Show recent runs (all pipelines)
+flowa history <pipeline_name>       # Filter history by pipeline name
+flowa logs <run_id>                 # Show step results for a specific run
 ```
 
 ### `flowa server` options
 
-```bash
-flowa server --host 0.0.0.0 --port 8080
-flowa server --no-scheduler
-```
+| Flag | Default | Description |
+|---|---|---|
+| `--host` | `127.0.0.1` | Bind address |
+| `--port` | `8000` | Port |
+| `--no-scheduler` | off | Disable the background scheduler (API + UI only) |
 
 ---
 
@@ -241,16 +496,36 @@ flowa server --no-scheduler
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/pipelines` | List available pipelines |
-| `POST` | `/pipelines/{name}/run` | Trigger a pipeline (async) |
-| `GET` | `/runs` | Execution history |
-| `GET` | `/runs/{id}` | Run detail with steps |
+| `GET` | `/pipelines` | List all pipelines with last run status |
+| `POST` | `/pipelines/{name}/run` | Trigger a pipeline (async, returns run_id) |
+| `GET` | `/runs` | Execution history (filter with `?pipeline=name&limit=20`) |
+| `GET` | `/runs/{id}` | Run detail with all steps |
 | `POST` | `/runs/{id}/stop` | Stop an active run |
-| `GET` | `/runs/{id}/steps/{step}/logs` | Step log content |
+| `GET` | `/runs/{id}/steps/{step}/logs` | Full log content of a step |
 | `GET` | `/stats` | Dashboard statistics (totals, daily, per-pipeline) |
 | `GET` | `/health` | Health check |
 
-Interactive docs available at `http://localhost:8000/docs`.
+Interactive docs: `http://localhost:8000/docs`
+
+**Examples:**
+
+```bash
+# Trigger a pipeline (use the yaml filename without extension)
+curl -X POST http://localhost:8000/pipelines/finance_etl/run
+# → {"run_id": 42, "pipeline_name": "Finance ETL", "status": "RUNNING"}
+
+# Check run status
+curl http://localhost:8000/runs/42
+
+# Stop a running pipeline
+curl -X POST http://localhost:8000/runs/42/stop
+
+# Get step log
+curl http://localhost:8000/runs/42/steps/extract/logs
+
+# List last 5 runs of a specific pipeline
+curl "http://localhost:8000/runs?pipeline=finance_etl&limit=5"
+```
 
 <img width="1132" height="739" alt="image" src="https://github.com/user-attachments/assets/0ad298bb-ce4b-441a-ad91-6a3d13e25436" />
 
@@ -258,37 +533,19 @@ Interactive docs available at `http://localhost:8000/docs`.
 
 <img width="1135" height="477" alt="image" src="https://github.com/user-attachments/assets/858ec210-bd10-4520-b44c-c9fed7d541e4" />
 
-**Trigger a pipeline:**
-
-```bash
-curl -X POST http://localhost:8000/pipelines/etl/run
-# {"run_id": 42, "status": "RUNNING", ...}
-```
-
-**Stop a running pipeline:**
-
-```bash
-curl -X POST http://localhost:8000/runs/42/stop
-```
-
-**Check run status:**
-
-```bash
-curl http://localhost:8000/runs/42
-```
-
 ---
 
-## Configuration
+## Environment Variables
 
-All settings are controlled via environment variables:
+All paths and behavior can be overridden via environment variables:
 
 | Variable | Default | Description |
 |---|---|---|
-| `FLOWA_PIPELINES_DIR` | `flowa-core/pipelines` | Directory scanned by the scheduler |
-| `FLOWA_LOGS_DIR` | `flowa-core/logs` | Where step log files are written |
-| `FLOWA_DB_PATH` | `flowa-core/data/flowa.db` | SQLite database file path |
-| `FLOWA_LOG_LEVEL` | `INFO` | Log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
+| `FLOWA_PIPELINES_DIR` | `flowa-core/pipelines` | Directory scanned for `.yaml` files |
+| `FLOWA_LOGS_DIR` | `flowa-core/logs` | Where step log files are stored |
+| `FLOWA_DB_PATH` | `flowa-core/data/flowa.db` | SQLite database path |
+| `FLOWA_CONFIG_PATH` | `flowa-core/config.yaml` | Global config file path |
+| `FLOWA_LOG_LEVEL` | `INFO` | Log verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
 
 ---
 
@@ -298,16 +555,35 @@ All settings are controlled via environment variables:
 my-project/
 ├── flowa-core/
 │   ├── pipelines/
-│   │   ├── etl.yaml
-│   │   └── reporting.yaml
-│   ├── logs/           ← step logs written here automatically
-│   └── data/
-│       └── flowa.db    ← SQLite database, created automatically
+│   │   ├── finance_etl.yaml       ← your pipeline definitions
+│   │   └── ops_monitor.yaml
+│   ├── logs/
+│   │   └── finance_etl/
+│   │       └── run_20250618_090000/
+│   │           ├── extract.log    ← one log file per step per run
+│   │           └── transform.log
+│   ├── data/
+│   │   └── flowa.db               ← SQLite, created automatically
+│   ├── config.yaml                ← AI provider keys and settings
+│   └── teams_config.py            ← Teams card customization (optional)
 └── scripts/
     ├── extract.py
-    ├── transform.sh
-    └── load.py
+    ├── transform.py
+    └── cleanup.sh
 ```
+
+---
+
+## Step Status Reference
+
+| Status | Meaning |
+|---|---|
+| `SUCCESS` | Step exited with code 0 |
+| `FAILED` | Step failed after all retries — downstream steps are skipped |
+| `FAILED (ignored)` | Step failed but `continue_on_error: true` — downstream continues |
+| `SKIPPED` | A required dependency failed, so this step never ran |
+| `RUNNING` | Step is currently executing |
+| `STOPPED` | Run was cancelled via the UI or API |
 
 ---
 
