@@ -59,13 +59,28 @@ def create_step_run(pipeline_run_id: int, step_name: str, log_file: str) -> int:
         )
         return cur.lastrowid
 
-def finish_step_run(step_run_id: int, status: str):
+def finish_step_run(step_run_id: int, status: str, resource_usage: dict | None = None):
     conn = get_connection()
     with conn:
-        conn.execute(
-            "UPDATE step_runs SET finished_at = ?, status = ? WHERE id = ?",
-            (_now(), status, step_run_id),
-        )
+        if resource_usage:
+            conn.execute(
+                "UPDATE step_runs SET finished_at = ?, status = ?,"
+                " cpu_percent_avg = ?, cpu_percent_max = ?, mem_mb_avg = ?, mem_mb_max = ?"
+                " WHERE id = ?",
+                (
+                    _now(), status,
+                    resource_usage.get("cpu_percent_avg"),
+                    resource_usage.get("cpu_percent_max"),
+                    resource_usage.get("mem_mb_avg"),
+                    resource_usage.get("mem_mb_max"),
+                    step_run_id,
+                ),
+            )
+        else:
+            conn.execute(
+                "UPDATE step_runs SET finished_at = ?, status = ? WHERE id = ?",
+                (_now(), status, step_run_id),
+            )
 
 def record_step_skipped(pipeline_run_id: int, step_name: str):
     conn = get_connection()
@@ -134,5 +149,22 @@ def get_step_runs(pipeline_run_id: int) -> list:
         "SELECT * FROM step_runs WHERE pipeline_run_id = ? ORDER BY started_at",
         (pipeline_run_id,),
     ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_recent_step_resource_usage(limit: int = 30) -> list:
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT
+            sr.id, sr.step_name, sr.status, sr.started_at, sr.finished_at,
+            sr.cpu_percent_avg, sr.cpu_percent_max, sr.mem_mb_avg, sr.mem_mb_max,
+            pr.id AS pipeline_run_id, pr.pipeline_name
+        FROM step_runs sr
+        JOIN pipeline_runs pr ON pr.id = sr.pipeline_run_id
+        WHERE sr.finished_at IS NOT NULL AND sr.cpu_percent_max IS NOT NULL
+        ORDER BY sr.finished_at DESC
+        LIMIT ?
+    """, (limit,)).fetchall()
     conn.close()
     return [dict(r) for r in rows]

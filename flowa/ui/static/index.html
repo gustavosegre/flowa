@@ -5,6 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>FLOWA</title>
+  <link rel="icon" type="image/png" href="/ui/flowa_logo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap"
     rel="stylesheet">
@@ -32,7 +33,7 @@
       --red: #ff5c5c;
       --red-dim: rgba(255, 92, 92, 0.08);
       --orange: #ffaa44;
-      --blue: #4d9fff;
+      --blue: #00e599;
       --blue-dim: rgba(77, 159, 255, 0.08);
       --font: 'JetBrains Mono', 'Fira Code', monospace;
       --r: 3px;
@@ -547,6 +548,50 @@
     .chart-legend { display: flex; gap: 16px; margin-top: 10px; }
     .chart-legend span { font-size: 10px; color: var(--text-muted); }
 
+    /* ── Monitor tab ─────────────────────────────── */
+    .core-bars {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .core-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .core-bar-label { width: 22px; flex-shrink: 0; }
+    .core-bar-pct { width: 32px; flex-shrink: 0; text-align: right; }
+
+    .core-bar-track {
+      flex: 1;
+      height: 6px;
+      background: var(--surface-2);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .core-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 400ms ease;
+    }
+
+    .chart-title .live-val { color: var(--text); font-weight: 700; }
+
+    tr.proc-pinned td {
+      background: var(--accent-dim);
+      font-weight: 600;
+    }
+
+    .pin-badge {
+      color: var(--accent);
+      white-space: nowrap;
+    }
+
     /* ── Leaf canvas ─────────────────────────────── */
     #leaf-canvas {
       position: fixed;
@@ -697,6 +742,7 @@
       <a data-nav="dashboard" onclick="go('/dashboard')">dashboard</a>
       <a data-nav="pipelines" onclick="go('/pipelines')">pipelines</a>
       <a data-nav="history" onclick="go('/history')">history</a>
+      <a data-nav="monitor" onclick="go('/monitor')">monitor</a>
     </nav>
     <div class="header-right" id="header-right"></div>
   </header>
@@ -713,6 +759,7 @@
     'use strict';
 
     let _refreshTimer = null;
+    let _monitorTimer = null;
 
     function go(path) {
       clearRefresh();
@@ -729,6 +776,8 @@
     function clearRefresh() {
       clearTimeout(_refreshTimer);
       _refreshTimer = null;
+      clearInterval(_monitorTimer);
+      _monitorTimer = null;
     }
 
     const api = {
@@ -759,6 +808,9 @@
       logs: (id, step) => api._get(`/runs/${id}/steps/${encodeURIComponent(step)}/logs`),
       trigger: (name) => api._post(`/pipelines/${encodeURIComponent(name)}/run`),
       stop: (runId) => api._post(`/runs/${runId}/stop`),
+      system: () => api._get('/system'),
+      systemHistory: () => api._get('/system/history'),
+      processes: (limit) => api._get(`/system/processes?limit=${limit || 30}`),
     };
 
     function dur(a, b) {
@@ -1164,6 +1216,251 @@
       </svg>`;
     }
 
+    function buildLineChart(points, opts = {}) {
+      const W = 480, H = 120;
+      const pT = 10, pB = 10, pL = 4, pR = 4;
+      const cW = W - pL - pR, cH = H - pT - pB;
+      const color = opts.color || 'var(--accent)';
+
+      if (!points.length) {
+        return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">
+          <text x="${W / 2}" y="${H / 2}" text-anchor="middle" font-size="11" fill="var(--text-muted)" font-family="monospace">gathering data…</text>
+        </svg>`;
+      }
+
+      const maxV = opts.max ?? Math.max(1, ...points);
+      const stepX = points.length > 1 ? cW / (points.length - 1) : 0;
+      const coords = points.map((v, i) => [
+        pL + i * stepX,
+        pT + cH - (Math.min(v, maxV) / maxV) * cH,
+      ]);
+
+      const linePath = coords.map((c, i) => (i === 0 ? 'M' : 'L') + c[0].toFixed(1) + ',' + c[1].toFixed(1)).join(' ');
+      const last = coords[coords.length - 1];
+      const first = coords[0];
+      const areaPath = `${linePath} L${last[0].toFixed(1)},${(pT + cH).toFixed(1)} L${first[0].toFixed(1)},${(pT + cH).toFixed(1)} Z`;
+
+      return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block" xmlns="http://www.w3.org/2000/svg">
+        <path d="${areaPath}" fill="${color}" opacity="0.1"/>
+        <path d="${linePath}" fill="none" stroke="${color}" stroke-width="1.6"/>
+        <circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="2.5" fill="${color}"/>
+      </svg>`;
+    }
+
+    function meterColor(pct) {
+      return pct >= 85 ? 'var(--red)' : pct >= 60 ? 'var(--orange)' : 'var(--accent)';
+    }
+
+    function buildCoreBars(perCore) {
+      if (!perCore || !perCore.length) return `<div class="dim" style="font-size:11px">n/a</div>`;
+      return `<div class="core-bars">${perCore.map((v, i) => `
+        <div class="core-bar-row">
+          <span class="core-bar-label">c${i}</span>
+          <div class="core-bar-track"><div class="core-bar-fill" style="width:${Math.min(100, v)}%;background:${meterColor(v)}"></div></div>
+          <span class="core-bar-pct">${Math.round(v)}%</span>
+        </div>`).join('')}</div>`;
+    }
+
+    function fmtUptime(bootTime) {
+      if (!bootTime) return '—';
+      const s = Math.max(0, Math.floor(Date.now() / 1000 - bootTime));
+      const d = Math.floor(s / 86400);
+      const h = Math.floor((s % 86400) / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      let out = '';
+      if (d) out += d + 'd ';
+      if (d || h) out += h + 'h ';
+      out += m + 'm';
+      return out;
+    }
+
+    function fmtMb(mb) {
+      if (mb == null) return '—';
+      return mb >= 1024 ? (mb / 1024).toFixed(2) + ' gb' : Math.round(mb) + ' mb';
+    }
+
+    function buildMonitorRows(snap, procs) {
+      const activeRows = (snap.active_steps || []).map(s => `
+        <tr>
+          <td style="color:var(--text)">${esc(s.pipeline_name)}</td>
+          <td>${esc(s.step_name)}</td>
+          <td>${statusHtml('RUNNING')}</td>
+          <td>${s.cpu_percent.toFixed(1)}%</td>
+          <td>${s.cpu_percent_max.toFixed(1)}%</td>
+          <td>${fmtMb(s.mem_mb)}</td>
+          <td>${fmtMb(s.mem_mb_max)}</td>
+          <td class="dim">${dur(s.started_at, new Date().toISOString())}</td>
+        </tr>`).join('');
+
+      const doneRows = procs.map(p => `
+        <tr>
+          <td style="color:var(--text)">${esc(p.pipeline_name)}</td>
+          <td>${esc(p.step_name)}</td>
+          <td>${statusHtml(p.status)}</td>
+          <td>${p.cpu_percent_avg != null ? p.cpu_percent_avg.toFixed(1) + '%' : '—'}</td>
+          <td>${p.cpu_percent_max != null ? p.cpu_percent_max.toFixed(1) + '%' : '—'}</td>
+          <td>${fmtMb(p.mem_mb_avg)}</td>
+          <td>${fmtMb(p.mem_mb_max)}</td>
+          <td class="dim">${dur(p.started_at, p.finished_at)}</td>
+        </tr>`).join('');
+
+      const rows = activeRows + doneRows;
+      return rows || `<tr><td colspan="8"><div class="empty" style="padding:32px 0">
+        <div class="empty-sub">no script activity recorded yet — trigger a pipeline to see consumption here</div>
+      </div></td></tr>`;
+    }
+
+    function buildProcessesRows(flowaProc, topProcs) {
+      const pinnedRow = flowaProc ? `
+        <tr class="proc-pinned">
+          <td><span class="pin-badge">◈ flowa</span></td>
+          <td class="dim">${flowaProc.pid}</td>
+          <td style="color:${meterColor(flowaProc.cpu_percent)}">${flowaProc.cpu_percent.toFixed(1)}%</td>
+          <td>${fmtMb(flowaProc.mem_mb)}</td>
+        </tr>` : '';
+
+      const otherRows = (topProcs || []).map(p => `
+        <tr>
+          <td style="color:var(--text)">${esc(p.name)}</td>
+          <td class="dim">${p.pid}</td>
+          <td>${p.cpu_percent.toFixed(1)}%</td>
+          <td>${fmtMb(p.mem_mb)}</td>
+        </tr>`).join('');
+
+      const rows = pinnedRow + otherRows;
+      return rows || `<tr><td colspan="4"><div class="empty" style="padding:32px 0">
+        <div class="empty-sub">gathering process data…</div>
+      </div></td></tr>`;
+    }
+
+    function setText(id, text) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    }
+
+    function setHtml(id, html) {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = html;
+    }
+
+    // Patches the already-mounted monitor view in place — no innerHTML wipe
+    // on #main, so cards/charts never re-trigger their entrance animation
+    // and the screen doesn't flash on every auto-refresh tick.
+    function patchMonitor(snap, hist, procs) {
+      const mem = snap.mem, disk = snap.disk;
+      const cpuHistory = hist.map(h => h.cpu_percent);
+      const memHistory = hist.map(h => h.mem.percent);
+
+      const cpuEl = document.getElementById('mon-cpu-val');
+      if (cpuEl) { cpuEl.textContent = snap.cpu_percent.toFixed(1) + '%'; cpuEl.style.color = meterColor(snap.cpu_percent); }
+      const ramEl = document.getElementById('mon-ram-val');
+      if (ramEl) { ramEl.textContent = mem.percent.toFixed(1) + '%'; ramEl.style.color = meterColor(mem.percent); }
+      setText('mon-ram-label', `ram · ${mem.used_gb}/${mem.total_gb} gb`);
+
+      if (disk) {
+        const diskEl = document.getElementById('mon-disk-val');
+        if (diskEl) { diskEl.textContent = disk.percent.toFixed(1) + '%'; diskEl.style.color = meterColor(disk.percent); }
+        setText('mon-disk-label', `disk · ${disk.used_gb}/${disk.total_gb} gb`);
+      }
+
+      setText('mon-uptime-val', fmtUptime(snap.boot_time));
+      setText('mon-uptime-label', `uptime · ${snap.process_count} procs`);
+
+      setText('mon-cpu-live', snap.cpu_percent.toFixed(0) + '%');
+      setText('mon-ram-live', mem.percent.toFixed(0) + '%');
+      setHtml('mon-cpu-chart', buildLineChart(cpuHistory, { color: 'var(--accent)', max: 100 }));
+      setHtml('mon-ram-chart', buildLineChart(memHistory, { color: 'var(--blue)', max: 100 }));
+      setHtml('mon-core-bars', buildCoreBars(snap.cpu_per_core));
+      setHtml('mon-procs-body', buildProcessesRows(snap.flowa_process, snap.top_processes));
+      setHtml('mon-table-body', buildMonitorRows(snap, procs));
+    }
+
+    function startMonitorAutoRefresh() {
+      _monitorTimer = setInterval(async () => {
+        try {
+          const [snap, hist, procs] = await Promise.all([
+            api.system(), api.systemHistory(), api.processes(30),
+          ]);
+          patchMonitor(snap, hist, procs);
+        } catch (e) {
+          // transient fetch error — keep showing the last good snapshot
+        }
+      }, 2000);
+    }
+
+    async function viewMonitor() {
+      setNav('monitor');
+
+      const [snap, hist, procs] = await Promise.all([
+        api.system(), api.systemHistory(), api.processes(30),
+      ]);
+
+      headerRight('<span style="color:var(--blue); font-size:11px">↻ live</span>');
+
+      const mem = snap.mem, disk = snap.disk;
+      const cpuHistory = hist.map(h => h.cpu_percent);
+      const memHistory = hist.map(h => h.mem.percent);
+
+      const statCards = `<div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="mon-cpu-val" style="color:${meterColor(snap.cpu_percent)}">${snap.cpu_percent.toFixed(1)}%</div>
+          <div class="stat-label">cpu · ${snap.cpu_count} cores</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="mon-ram-val" style="color:${meterColor(mem.percent)}">${mem.percent.toFixed(1)}%</div>
+          <div class="stat-label" id="mon-ram-label">ram · ${mem.used_gb}/${mem.total_gb} gb</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="mon-disk-val" style="color:${disk ? meterColor(disk.percent) : 'var(--text)'}">${disk ? disk.percent.toFixed(1) + '%' : '—'}</div>
+          <div class="stat-label" id="mon-disk-label">disk · ${disk ? `${disk.used_gb}/${disk.total_gb} gb` : '—'}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="mon-uptime-val">${fmtUptime(snap.boot_time)}</div>
+          <div class="stat-label" id="mon-uptime-label">uptime · ${snap.process_count} procs</div>
+        </div>
+      </div>`;
+
+      const chartRow = `<div class="chart-row">
+        <div class="chart-card">
+          <div class="chart-title">cpu — last ~5 min <span class="live-val" id="mon-cpu-live">${snap.cpu_percent.toFixed(0)}%</span></div>
+          <div id="mon-cpu-chart">${buildLineChart(cpuHistory, { color: 'var(--accent)', max: 100 })}</div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">memory — last ~5 min <span class="live-val" id="mon-ram-live">${mem.percent.toFixed(0)}%</span></div>
+          <div id="mon-ram-chart">${buildLineChart(memHistory, { color: 'var(--blue)', max: 100 })}</div>
+        </div>
+        <div class="chart-card fixed" style="min-width:200px">
+          <div class="chart-title">per-core</div>
+          <div id="mon-core-bars">${buildCoreBars(snap.cpu_per_core)}</div>
+        </div>
+      </div>`;
+
+      const processesSection = `<div class="table-wrap"><table>
+        <thead><tr><th>process</th><th>pid</th><th>cpu</th><th>mem</th></tr></thead>
+        <tbody id="mon-procs-body">${buildProcessesRows(snap.flowa_process, snap.top_processes)}</tbody>
+      </table></div>`;
+
+      const tableSection = `<div class="table-wrap"><table>
+        <thead><tr>
+          <th>pipeline</th><th>step</th><th>status</th>
+          <th>cpu avg</th><th>cpu max</th><th>mem avg</th><th>mem max</th><th>duration</th>
+        </tr></thead>
+        <tbody id="mon-table-body">${buildMonitorRows(snap, procs)}</tbody>
+      </table></div>`;
+
+      return `<div class="section-label">hardware monitor</div>
+        ${statCards}
+        ${chartRow}
+        <div class="section-label">system processes</div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:24px">
+          ${processesSection}
+        </div>
+        <div class="section-label">script resource consumption</div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+          ${tableSection}
+        </div>`;
+    }
+
     async function viewDashboard() {
       setNav('dashboard');
       headerRight('');
@@ -1251,6 +1548,10 @@
       try {
         if (view === 'dashboard') {
           main.innerHTML = await viewDashboard();
+
+        } else if (view === 'monitor') {
+          main.innerHTML = await viewMonitor();
+          startMonitorAutoRefresh();
 
         } else if (view === 'runs' && parts[1] && parts[2] === 'steps' && parts[3] && parts[4] === 'logs') {
           main.innerHTML = await viewLogs(parts[1], decodeURIComponent(parts[3]));

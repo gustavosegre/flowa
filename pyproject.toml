@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "flowa-core"
-version = "0.2.1"
+version = "0.2.2"
 authors = [
   { name = "gustavosegre" },
 ]
@@ -26,6 +26,7 @@ dependencies = [
     "httpx",
     "requests",
     "urllib3",
+    "psutil",
 ]
 
 [project.urls]

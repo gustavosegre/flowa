@@ -15,6 +15,7 @@ Define workflows in YAML, run them from the CLI, schedule them with cron, and mo
 - **SQLite history** — every run and step is recorded automatically
 - **REST API** — trigger, stop and query pipelines programmatically
 - **Web UI** — built-in dashboard to manage and monitor pipelines
+- **Hardware monitor** — live CPU/RAM/disk charts plus a per-script CPU & memory consumption log
 - **Script support** — run `.py`, `.sh` and `.bat` files natively
 - **Workspaces** — group pipelines by team or domain directly in the YAML
 - **Microsoft Teams notifications** — Adaptive Card alerts with optional AI error analysis
@@ -25,6 +26,12 @@ Define workflows in YAML, run them from the CLI, schedule them with cron, and mo
 ---
 
 ## What's New
+
+### v0.2.2
+- **Hardware monitor tab** — new `monitor` tab in the web UI with live CPU (overall + per-core), RAM and disk usage, ~5 min history charts, and a resource consumption log showing how much CPU/RAM each pipeline step used
+- **System processes box** — live list of the top system processes by CPU/memory, with the flowa server process itself pinned at the top
+- Smooth, flicker-free auto-refresh on the monitor tab (in-place DOM patching instead of a full re-render)
+- Browser tab favicon
 
 ### v0.2.1
 - **AI error analysis** — on failure, flowa sends the step log to an LLM (Groq, Claude, Gemini or OpenAI) and includes the diagnosis in the Teams notification
@@ -503,6 +510,9 @@ flowa logs <run_id>                 # Show step results for a specific run
 | `POST` | `/runs/{id}/stop` | Stop an active run |
 | `GET` | `/runs/{id}/steps/{step}/logs` | Full log content of a step |
 | `GET` | `/stats` | Dashboard statistics (totals, daily, per-pipeline) |
+| `GET` | `/system` | Live hardware snapshot (CPU, RAM, disk, network, active step usage) |
+| `GET` | `/system/history` | Rolling ~5 min history of hardware snapshots, for charting |
+| `GET` | `/system/processes` | Resource consumption log of recently finished steps (`?limit=30`) |
 | `GET` | `/health` | Health check |
 
 Interactive docs: `http://localhost:8000/docs`
@@ -546,6 +556,7 @@ All paths and behavior can be overridden via environment variables:
 | `FLOWA_DB_PATH` | `flowa-core/data/flowa.db` | SQLite database path |
 | `FLOWA_CONFIG_PATH` | `flowa-core/config.yaml` | Global config file path |
 | `FLOWA_LOG_LEVEL` | `INFO` | Log verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
+| `FLOWA_DISK_PATH` | `/` (or drive root on Windows) | Disk/partition whose usage is shown in the monitor tab |
 
 ---
 

@@ -58,3 +58,17 @@ class StepLogsResponse(BaseModel):
     step_name: str
     log_file: str
     content: str
+
+
+class StepResourceUsage(BaseModel):
+    id: int
+    step_name: str
+    status: str
+    started_at: Optional[str]
+    finished_at: Optional[str]
+    cpu_percent_avg: Optional[float]
+    cpu_percent_max: Optional[float]
+    mem_mb_avg: Optional[float]
+    mem_mb_max: Optional[float]
+    pipeline_run_id: int
+    pipeline_name: str

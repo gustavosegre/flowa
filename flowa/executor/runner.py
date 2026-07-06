@@ -15,6 +15,7 @@ from flowa.database.repository import (
     finish_step_run,
     record_step_skipped,
 )
+from flowa.utils import resource_monitor
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +87,8 @@ def _subprocess_env() -> dict:
 
 class Executor:
 
-    def run_step(self, step, run_dir: str, run_id: int = None, stop_event: threading.Event = None):
+    def run_step(self, step, run_dir: str, run_id: int = None, stop_event: threading.Event = None,
+                 step_run_id: int = None, pipeline_name: str = None):
         log_file = os.path.join(run_dir, f"{step.name}.log")
         command = _build_command(step.run, use_uv=step.use_uv)
         env = _subprocess_env()
@@ -107,6 +109,8 @@ class Executor:
 
                     if run_id is not None:
                         _set_active_proc(run_id, proc)
+                    if step_run_id is not None:
+                        resource_monitor.track_step_start(step_run_id, proc.pid, pipeline_name, step.name)
 
                     deadline = (time.monotonic() + step.timeout_seconds) if step.timeout_seconds else None
 
@@ -154,14 +158,18 @@ class Executor:
                 else:
                     raise
 
-    def _execute_step(self, step, run_dir: str, pipeline_run_id: int, stop_event: threading.Event = None):
+    def _execute_step(self, step, run_dir: str, pipeline_run_id: int, stop_event: threading.Event = None,
+                       pipeline_name: str = None):
         log_file = os.path.join(run_dir, f"{step.name}.log")
         step_run_id = create_step_run(pipeline_run_id, step.name, log_file)
         try:
-            self.run_step(step, run_dir, run_id=pipeline_run_id, stop_event=stop_event)
-            finish_step_run(step_run_id, "SUCCESS")
+            self.run_step(
+                step, run_dir, run_id=pipeline_run_id, stop_event=stop_event,
+                step_run_id=step_run_id, pipeline_name=pipeline_name,
+            )
+            finish_step_run(step_run_id, "SUCCESS", resource_monitor.track_step_finish(step_run_id))
         except Exception:
-            finish_step_run(step_run_id, "FAILED")
+            finish_step_run(step_run_id, "FAILED", resource_monitor.track_step_finish(step_run_id))
             raise
 
     def prepare_run(self, pipeline) -> tuple:
@@ -172,6 +180,7 @@ class Executor:
 
     def run_pipeline(self, pipeline, *, run_id: int = None, run_dir: str = None):
         init_db()
+        resource_monitor.start_monitor()
         logger.info(f"[pipeline:{pipeline.name}] starting")
 
         if run_id is None:
@@ -224,7 +233,7 @@ class Executor:
                     for step in ready:
                         logger.info(f"[step:{step.name}] queued for execution")
                         future = pool.submit(
-                            self._execute_step, step, run_dir, pipeline_run_id, stop_event
+                            self._execute_step, step, run_dir, pipeline_run_id, stop_event, pipeline.name
                         )
                         futures[future] = step
 
